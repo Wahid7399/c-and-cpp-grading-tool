@@ -77,6 +77,37 @@ python main.py --input ./project1 --output ./results --config ./config.yml --res
 
 ---
 
+## Config file
+
+Edit the file in `config/default.json` or provide a file via command line arguments
+```json
+{
+    "python_slug": "python3",
+    "plugins": {
+        "metrixplusplus": {
+            "enabled": true,
+            "metrices": [
+                "std.code.halstead.all",
+                "std.code.maintindex.simple",
+                "std.code.complexity.cyclomatic",
+                "std.code.lines.code",
+                "std.code.lines.comments",
+                "std.code.ratio.comments"
+            ]
+        },
+        "clangtidy": {
+            "enabled": true,
+            "command": "clang-tidy",
+            "config": null,
+            "extra_args": [
+                "-std=c++17",
+                "-isysroot", 
+                "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
+            ]
+        }
+    }
+```
+
 ## Project Structure
 
 ```
