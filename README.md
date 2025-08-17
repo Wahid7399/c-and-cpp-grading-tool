@@ -1,4 +1,4 @@
-# Quality Scorer
+# Quality Metrics
 
 A command-line tool for analyzing project directories and generating quality reports in CSV or JSON format.  
 Supports both single-folder and multi-folder processing.
@@ -20,8 +20,8 @@ Supports both single-folder and multi-folder processing.
 Clone the repository and install dependencies:
 
 ```bash
-git clone https://github.com/XX/quality-scorer.git
-cd quality-scorer
+git clone https://github.com/Wahid7399/quality-metrics.git
+cd quality-metrics
 pip install -r requirements.txt
 ```
 
