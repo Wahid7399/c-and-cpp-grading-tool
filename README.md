@@ -62,7 +62,7 @@ python main.py --input ./projects --output ./results --multifolder --threads 4
 
 ### With custom config and JSON output
 ```bash
-python main.py --input ./project1 --output ./results --config ./config.yml --result-format json
+python main.py --input ./project1 --output ./results --config ./config.json --result-format json
 ```
 
 ---
