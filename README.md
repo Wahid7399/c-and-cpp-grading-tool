@@ -278,7 +278,3 @@ cat results/.myawesome/results.json
 ```
 
 ---
-## License
-
-This project is licensed under the [MIT License](LICENSE).
-
