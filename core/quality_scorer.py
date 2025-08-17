@@ -1,0 +1,110 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import List
+from config import settings
+from plugins import plugin_list
+from zipfile import ZipFile
+import shutil
+import os
+
+def init() -> dict:
+    """
+    Run the quality scorer on the provided input and output paths.
+    """
+    # Loop through all plugins and initialize them
+    for plugin in plugin_list.keys():
+        if hasattr(settings.plugins, plugin) and settings.plugins[plugin].enabled:
+            plugin_instance = plugin_list[plugin]
+            plugin_instance.initialize()
+    print("")
+
+def run(input: str, output: str) -> dict:
+    """
+    Run the quality scorer on the provided input and output paths.
+    """
+
+    # Create output directory if it doesn't exist
+    output_path = output
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+
+    # Loop through all plugins and run them
+    results = {}
+    for plugin in plugin_list.keys():
+        if hasattr(settings.plugins, plugin) and settings.plugins[plugin].enabled:
+            plugin_instance = plugin_list[plugin]
+            results.update(plugin_instance.run(input, output))
+
+    return results
+
+def _multifolder_run(input_dirs: List[str], output: str) -> dict:
+    """
+    Run the quality scorer on multiple folders.
+    Loop through the main directory, go into each subfolder,
+        Find a folder inside subfolder to unzip, run the quality scorer on it, and then delete the folder.
+        If no folder to unzip, run on the input subfolder as it is.
+    """
+    results = {}
+    for entry in input_dirs:
+        output_message = ""
+        if entry.is_dir():
+            dir_path = entry.path
+            output_message += f"ℹ️ Processing {dir_path}\n"
+            dir_name = os.path.basename(dir_path)
+            # If a zip exists, unzip it and run the quality scorer
+            if any(file.endswith('.zip') for root, dirs, files in os.walk(dir_path) for file in files):
+                zip_paths = []
+                for root, dirs, files in os.walk(dir_path):
+                    for file in files:
+                        if file.endswith('.zip'):
+                            zip_paths.append(os.path.join(root, file))
+                if len(zip_paths) > 1:
+                    output_message += f"⚠️ Multiple zip files found in {dir_path}! This should not happen, please check.\n"
+                for zip_path in zip_paths:
+                    unzip_temp = os.path.join(dir_path, "unzipped")
+                    with ZipFile(zip_path, 'r') as zip_ref:
+                        zip_ref.extractall(unzip_temp)
+                    if not any(file.endswith(('.c', '.h', '.cpp')) for root, dirs, files in os.walk(unzip_temp) for file in files):
+                        output_message += f"⚠️ No C/C++ files found in {unzip_temp}, skipping\n"
+                        shutil.rmtree(unzip_temp, ignore_errors=True)
+                        print(output_message)
+                        continue
+                    sub_results = run(unzip_temp, os.path.join(output, dir_name))
+                    results[dir_name] = sub_results
+                    shutil.rmtree(unzip_temp, ignore_errors=True)
+            else:
+                if not any(file.endswith(('.c', '.h', '.cpp')) for root, dirs, files in os.walk(dir_path) for file in files):
+                    output_message += f"⚠️ No C/C++ files found in {dir_path}, skipping\n"
+                    print(output_message)
+                    continue
+                sub_results = run(dir_path, os.path.join(output, dir_name))
+                results[dir_name] = sub_results
+            print(output_message)
+    return results
+
+def multifolder_run(input: str, output: str, num_threads: int) -> dict:
+    """
+    Run the quality scorer on multiple folders with optional multithreading.
+    """
+    if not os.path.exists(input):
+        raise FileNotFoundError(f"Input path {input} does not exist")
+    
+    if not os.path.exists(output):
+        os.makedirs(output, exist_ok=True)
+
+    output = os.path.abspath(output)
+
+    folders = []
+    for entry in os.scandir(input):
+        if entry.is_dir():
+            folders.append(entry)
+
+    if num_threads == 1:
+        return _multifolder_run(folders, output)
+    else:
+        results = {}
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+            futures = {executor.submit(_multifolder_run, [folder], output): folder.path
+                    for folder in folders}
+            for future in as_completed(futures):
+                results.update(future.result())
+        return results

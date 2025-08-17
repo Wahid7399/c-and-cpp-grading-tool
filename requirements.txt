@@ -1,0 +1,2 @@
+clang-tidy==20.1.0
+requests

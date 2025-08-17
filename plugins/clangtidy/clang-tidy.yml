@@ -1,0 +1,19 @@
+Checks: >
+  readability-*,
+  readability-identifier-naming,
+  readability-function-cognitive-complexity,
+  -readability-braces-around-statements,
+  -readability-magic-numbers,
+  -readability-isolate-declaration
+
+CheckOptions:
+  - key: readability-function-cognitive-complexity.Threshold
+    value: '2'
+  - key: readability-identifier-naming.FunctionCase
+    value: camelBack
+  - key: readability-identifier-naming.VariableCase
+    value: camelBack
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.EnumConstantCase
+    value: UPPER_CASE
