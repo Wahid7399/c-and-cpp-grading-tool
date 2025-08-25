@@ -3,6 +3,7 @@ from pathlib import Path
 from config import settings
 from plugins import BasePlugin
 from collections import defaultdict
+from .reporting import generate_html_report
 import subprocess
 import re
 import os
@@ -21,7 +22,8 @@ class MetrixPlusPlusPlugin(BasePlugin):
     def __init__(self):
         super(MetrixPlusPlusPlugin, self).__init__(
             name="Metrix++",
-            description="Integrate Metrix++ metrics into Code Quality Scorer",
+            report_name="Software Quality Report",
+            description="Software Metrics - Cyclomatic Complexity, Halstead Metrics, Maintainability Index, and more",
             slug="metrixplusplus",
             version="1.8.1"
         )
@@ -83,38 +85,40 @@ class MetrixPlusPlusPlugin(BasePlugin):
 
         raw = self.__parse_metrics(data)
 
-        metrices = {}
+        metrics = {}
         if "std.code.complexity:cyclomatic" in raw:
-            metrices["cyclomatic"] = raw["std.code.complexity:cyclomatic"]["stats"]["Total"]
+            metrics["cyclomatic"] = raw["std.code.complexity:cyclomatic"]["stats"]["Total"]
         if "std.code.lines:code" in raw:
-            metrices["lines_of_code"] = raw["std.code.lines:code"]["stats"]["Total"]
+            metrics["lines_of_code"] = raw["std.code.lines:code"]["stats"]["Total"]
         if "std.code.lines:comments" in raw:
-            metrices["lines_of_comments"] = raw["std.code.lines:comments"]["stats"]["Total"]
+            metrics["lines_of_comments"] = raw["std.code.lines:comments"]["stats"]["Total"]
         if "std.code.ratio:comments" in raw:
-            metrices["comment_ratio"] = raw["std.code.ratio:comments"]["stats"]["Total"]
+            metrics["comment_ratio"] = raw["std.code.ratio:comments"]["stats"]["Total"]
         if "std.code.halstead_base:_n1" in raw:
-            metrices["halstead_n1"] = raw["std.code.halstead_base:_n1"]["stats"]["Total"]
+            metrics["halstead_n1"] = raw["std.code.halstead_base:_n1"]["stats"]["Total"]
         if "std.code.halstead_base:_n2" in raw:
-            metrices["halstead_n2"] = raw["std.code.halstead_base:_n2"]["stats"]["Total"]
+            metrics["halstead_n2"] = raw["std.code.halstead_base:_n2"]["stats"]["Total"]
         if "std.code.halstead_base:N1" in raw:
-            metrices["halstead_N1"] = raw["std.code.halstead_base:N1"]["stats"]["Total"]
+            metrics["halstead_N1"] = raw["std.code.halstead_base:N1"]["stats"]["Total"]
         if "std.code.halstead_base:N2" in raw:
-            metrices["halstead_N2"] = raw["std.code.halstead_base:N2"]["stats"]["Total"]
+            metrics["halstead_N2"] = raw["std.code.halstead_base:N2"]["stats"]["Total"]
         if "std.code.halstead_adv:H_Volume" in raw:
-            metrices["halstead_volume"] = raw["std.code.halstead_adv:H_Volume"]["stats"]["Total"]
+            metrics["halstead_volume"] = raw["std.code.halstead_adv:H_Volume"]["stats"]["Total"]
         if "std.code.halstead_adv:H_Difficulty" in raw:
-            metrices["halstead_difficulty"] = raw["std.code.halstead_adv:H_Difficulty"]["stats"]["Total"]
+            metrics["halstead_difficulty"] = raw["std.code.halstead_adv:H_Difficulty"]["stats"]["Total"]
         if "std.code.halstead_adv:H_Effort" in raw:
-            metrices["halstead_effort"] = raw["std.code.halstead_adv:H_Effort"]["stats"]["Total"]
+            metrics["halstead_effort"] = raw["std.code.halstead_adv:H_Effort"]["stats"]["Total"]
         if "std.code.mi:simple" in raw:
-            metrices["maintainability_index"] = raw["std.code.mi:simple"]["stats"]["Total"]
+            metrics["maintainability_index"] = raw["std.code.mi:simple"]["stats"]["Total"]
+
         results = {
-            "metrices": metrices,
-            "raw_metrices": raw
+            "metrics": metrics,
+            "raw_metrics": raw
         }
+
         with open(os.path.join(pwd, "results.json"), "w") as metrics_file:
             json.dump(results, metrics_file, indent=4)
-        return metrices
+        return metrics, results, data
 
     def __collect(self, pwd: str, input_path: str):
         """
@@ -124,7 +128,7 @@ class MetrixPlusPlusPlugin(BasePlugin):
             settings.python_slug,
             MetrixPlusPlusPlugin.PATH,
             "collect",
-            *[f"--{metric}" for metric in settings.plugins.metrixplusplus.metrices],
+            *[f"--{metric}" for metric in settings.plugins.metrixplusplus.metrics],
             f"--db-file={pwd}/metrixpp.db",
             "--",
             input_path,
@@ -214,3 +218,17 @@ class MetrixPlusPlusPlugin(BasePlugin):
                     })
 
         return dict(metrics)
+
+    def generate_report(self, input_path: str, output_path: str, results: dict, log: str) -> bool:
+        """
+        Generate a report from the collected metrics.
+        """
+        if not results:
+            return "No results to report."
+
+        html = generate_html_report(results["metrics"])
+
+        pwd = os.path.join(output_path, f".{self.slug}")
+        with open(os.path.join(pwd, "report.html"), "w") as metrics_file:
+            metrics_file.write(html)
+        return True

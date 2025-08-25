@@ -3,6 +3,7 @@ from typing import List
 from config import settings
 from plugins import plugin_list
 from zipfile import ZipFile
+from .reporting import build_single_report
 import shutil
 import os
 
@@ -29,14 +30,27 @@ def run(input: str, output: str) -> dict:
 
     # Loop through all plugins and run them
     results = {}
+    reports = []
     for plugin in plugin_list.keys():
         if hasattr(settings.plugins, plugin) and settings.plugins[plugin].enabled:
             plugin_instance = plugin_list[plugin]
-            results.update(plugin_instance.run(input, output))
+            metrics, detailed_output, log = plugin_instance.run(input, output)
+            results.update(metrics)
+            has_report = plugin_instance.generate_report(input, output, detailed_output, log)
+            if has_report:
+                # get relative path from output_path
+                relative_path = os.path.relpath(os.path.join(output_path, f".{plugin_instance.slug}", "report.html"), output_path)
+                reports.append({
+                    "name": plugin_instance.report_name,
+                    "description": plugin_instance.description,
+                    "path": relative_path
+                })
+    if reports:
+        build_single_report(reports, output)
 
     return results
 
-def _multifolder_run(input_dirs: List[str], output: str) -> dict:
+def _multifolder_single_batch_run(input_dirs: List[str], output: str) -> dict:
     """
     Run the quality scorer on multiple folders.
     Loop through the main directory, go into each subfolder,
@@ -99,11 +113,11 @@ def multifolder_run(input: str, output: str, num_threads: int) -> dict:
             folders.append(entry)
 
     if num_threads == 1:
-        return _multifolder_run(folders, output)
+        return _multifolder_single_batch_run(folders, output)
     else:
         results = {}
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
-            futures = {executor.submit(_multifolder_run, [folder], output): folder.path
+            futures = {executor.submit(_multifolder_single_batch_run, [folder], output): folder.path
                     for folder in folders}
             for future in as_completed(futures):
                 results.update(future.result())

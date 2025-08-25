@@ -52,17 +52,17 @@ python main.py --input <input_dir> --output <output_dir> [options]
 
 ### Single folder run
 ```bash
-python main.py --input ./project1 --output ./results
+python main.py --input ./examples/0 --output ./test_0
 ```
 
 ### Multi-folder run
 ```bash
-python main.py --input ./projects --output ./results --multifolder --threads 4
+python main.py --input ./examples/1 --output ./test_1 --multifolder --threads 4
 ```
 
-### With custom config and JSON output
+### With custom config
 ```bash
-python main.py --input ./project1 --output ./results --config ./config.json --result-format json
+python main.py --input ./examples/1 --output ./test_1 --multifolder --config ./config.json
 ```
 
 ---
@@ -86,7 +86,7 @@ Edit the file in `config/default.json` or provide a file via command line argume
     "plugins": {
         "metrixplusplus": {
             "enabled": true,
-            "metrices": [
+            "metrics": [
                 "std.code.halstead.all",
                 "std.code.maintindex.simple",
                 "std.code.complexity.cyclomatic",

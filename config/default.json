@@ -3,7 +3,7 @@
     "plugins": {
         "metrixplusplus": {
             "enabled": true,
-            "metrices": [
+            "metrics": [
                 "std.code.halstead.all",
                 "std.code.maintindex.simple",
                 "std.code.complexity.cyclomatic",
@@ -21,6 +21,14 @@
                 "-isysroot", 
                 "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
             ]
+        },
+        "valgrind": {
+            "enabled": false,
+            "command": "valgrind"
+        },
+        "cppcheck": {
+            "enabled": true,
+            "command": "cppcheck"
         }
     }
 }

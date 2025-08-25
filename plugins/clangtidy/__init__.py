@@ -1,7 +1,10 @@
+from asyncio import log
 from pathlib import Path
+from typing import Tuple
 from config import settings
 from plugins import BasePlugin
 from collections import Counter, defaultdict
+from .reporting import generate_html_report
 import subprocess
 import glob
 import re
@@ -33,7 +36,8 @@ class ClangTidyPlugin(BasePlugin):
     def __init__(self):
         super(ClangTidyPlugin, self).__init__(
             name="Clang Tidy",
-            description="Integrate Clang Tidy metrics into Code Quality Scorer",
+            report_name="Readability & Correctness Report",
+            description="Static Analysis - Code style, Security, Correctness, Performance, and more",
             slug="clangtidy",
             version="20.1.0"
         )
@@ -60,11 +64,14 @@ class ClangTidyPlugin(BasePlugin):
         command = [
             settings.plugins.clangtidy.command,
             "-quiet",
+            # "-allow-enabling-analyzer-alpha-checkers",
             f"--config-file={config_path}",
             *files,
             "--",
             "-ferror-limit=0",
             "-fno-color-diagnostics",
+            "-Wunreachable-code",
+            "-Wunused-variable",
             *settings.plugins.clangtidy.extra_args,
         ]
         proc = subprocess.run(
@@ -126,106 +133,7 @@ class ClangTidyPlugin(BasePlugin):
         combined_output = "\n".join(all_outputs).strip()
         processed = [f for f in files if os.path.abspath(f) not in skipped]
         return combined_output, processed, sorted(skipped)
-
-    def run(self, input_path, output_path):
-        if settings.plugins.clangtidy is None or settings.plugins.clangtidy.enabled is not True:
-            return
-
-        clang_tidy_config = settings.plugins.clangtidy.config or Path(__file__).parent.resolve() / "clang-tidy.yml"
-        build_dir = getattr(settings.plugins.clangtidy, "build_dir", None)
-        cmd = getattr(settings.plugins.clangtidy, "command", "clang-tidy")
-
-        # Collect .cpp files
-        cpp_files = glob.glob(os.path.join(input_path, "**", "*.cpp"), recursive=True)
-
-        if not cpp_files:
-            print(f"❌ No .cpp files found in {input_path}")
-            return {}
-
-        # Ensure output folder
-        pwd = os.path.join(output_path, ".clangtidy")
-        os.makedirs(pwd, exist_ok=True)
-
-        # Run with retries
-        combined, processed_files, skipped_files = self._run_with_retries(
-            cpp_files,
-            config_path=str(clang_tidy_config),
-            build_dir=build_dir,
-            cmd=cmd,
-            max_retries=3,
-        )
-
-        # Always write a log
-        with open(os.path.join(pwd, "data.log"), "w") as f:
-            f.write(combined)
-
-        # Parse whatever we got (even if some files failed)
-        report = self.__parse_clang_tidy_output(combined) if combined else {
-            "by_concept": {},
-        }
-
-        results = {
-            "metrices": report.get("by_concept", {}),
-            "raw_metrices": report,
-            "processed_files": processed_files,
-            "skipped_files": skipped_files,
-        }
-        with open(os.path.join(pwd, "results.json"), "w") as metrics_file:
-            json.dump(results, metrics_file, indent=4)
-
-        # IMPORTANT: never raise; treat as success even if some files were skipped
-        return report.get("by_concept", {})
-
-    # def run(self, input_path, output_path):
-    #     if settings.plugins.clangtidy is None or settings.plugins.clangtidy.enabled is not True:
-    #         return
-        
-    #     clang_tidy_config = settings.plugins.clangtidy.config or Path(__file__).parent.resolve() / "clang-tidy.yml"
-
-    #     cpp_files = glob.glob(os.path.join(input_path, "**", "*.cpp"), recursive=True)
-
-    #     if not cpp_files:
-    #         print(f"❌ No .cpp files found in {input_path}")
-    #         return {}
-
-    #     pwd = os.path.join(output_path, ".clangtidy")
-    #     if not os.path.exists(pwd):
-    #         os.makedirs(pwd, exist_ok=True)
-
-    #     try:
-    #         # Run clang-tidy on the input path
-    #         command = [
-    #             settings.plugins.clangtidy.command,
-    #             *cpp_files,
-    #             "-quiet",
-    #             f"--config-file={clang_tidy_config}",
-    #             "--",
-    #             "-fno-color-diagnostics",
-    #             "-ferror-limit=0",
-    #         ]
-    #         result = subprocess.run(
-    #             command,
-    #             check=True,
-    #             capture_output=True,
-    #             text=True
-    #         )
-    #         combined = (result.stdout or "") + "\n" + (result.stderr or "")
-    #         with open(os.path.join(pwd, "data.log"), "w") as f:
-    #             f.write(combined)
-    #         if result.returncode != 0:
-    #             raise subprocess.CalledProcessError(result.returncode, command)
-    #         report = self.__parse_clang_tidy_output(combined)
-    #         results = {
-    #             "metrices": report["by_concept"],
-    #             "raw_metrices": report
-    #         }
-    #         with open(os.path.join(pwd, "results.json"), "w") as metrics_file:
-    #             json.dump(results, metrics_file, indent=4)
-    #         return report["by_concept"]
-    #     except subprocess.CalledProcessError as e:
-    #         print("❌ Error running Clang Tidy:", e)
-    #         print(e.stderr)
-
+    
     def __broad_concept(self, check_name: str) -> str:
         for regex, category in ClangTidyPlugin.CATEGORY_RULES:
             if regex.fullmatch(check_name) or regex.match(check_name):
@@ -267,3 +175,79 @@ class ClangTidyPlugin(BasePlugin):
             "by_severity": severity_counts,
             "by_file_concept": by_file,
         }
+
+    def run(self, input_path, output_path) -> Tuple[dict, dict, str]:
+        """
+        Run the Clang Tidy analysis.
+
+        Args:
+            input_path (str): Path to the input directory containing .cpp files.
+            output_path (str): Path to the output directory where results will be stored.
+
+        Returns:
+            Tuple[dict, dict, str]: A tuple containing:
+                - Simplified metrics result
+                - Detailed output
+                - Logs
+        """
+        if settings.plugins.clangtidy is None or settings.plugins.clangtidy.enabled is not True:
+            return {}, {}, ""
+
+        clang_tidy_config = settings.plugins.clangtidy.config or Path(__file__).parent.resolve() / "clang-tidy.yml"
+        build_dir = getattr(settings.plugins.clangtidy, "build_dir", None)
+        cmd = getattr(settings.plugins.clangtidy, "command", "clang-tidy")
+
+        # Collect .cpp files
+        cpp_files = glob.glob(os.path.join(input_path, "**", "*.cpp"), recursive=True)
+
+        if not cpp_files:
+            print(f"❌ No .cpp files found in {input_path}")
+            return {}, {}, ""
+
+        # Ensure output folder
+        pwd = os.path.join(output_path, ".clangtidy")
+        os.makedirs(pwd, exist_ok=True)
+
+        # Run with retries
+        combined, processed_files, skipped_files = self._run_with_retries(
+            cpp_files,
+            config_path=str(clang_tidy_config),
+            build_dir=build_dir,
+            cmd=cmd,
+            max_retries=3,
+        )
+
+        # Always write a log
+        with open(os.path.join(pwd, "data.log"), "w") as f:
+            f.write(combined)
+
+        # Parse whatever we got (even if some files failed)
+        report = self.__parse_clang_tidy_output(combined) if combined else {
+            "by_concept": {},
+        }
+
+        results = {
+            "metrics": report.get("by_concept", {}),
+            "raw_metrics": report,
+            "processed_files": processed_files,
+            "skipped_files": skipped_files,
+        }
+        with open(os.path.join(pwd, "results.json"), "w") as metrics_file:
+            json.dump(results, metrics_file, indent=4)
+
+        # IMPORTANT: never raise; treat as success even if some files were skipped
+        return report.get("by_concept", {}), results, combined
+
+    def generate_report(self, input_path: str, output_path: str, results: dict, log: str) -> bool:
+        """
+        Generate a report from the collected metrics.
+        """
+        if not results:
+            return "No results to report."
+
+        html = generate_html_report(results, log)
+
+        pwd = os.path.join(output_path, ".clangtidy")
+        with open(os.path.join(pwd, "report.html"), "w") as metrics_file:
+            metrics_file.write(html)
+        return True

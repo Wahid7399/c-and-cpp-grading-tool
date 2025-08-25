@@ -1,9 +1,13 @@
 """
 BasePlugin interface for CodeQualityScorer plugins
 """
+from typing import Tuple
+
+
 class BasePlugin:
-    def __init__(self, name: str, description: str, slug: str, version: str):
+    def __init__(self, name: str, report_name: str, description: str, slug: str, version: str):
         self.name = name
+        self.report_name = report_name
         self.description = description
         self.slug = slug
         self.version = version
@@ -15,8 +19,25 @@ class BasePlugin:
         """
         raise NotImplementedError("Need to implement.")
 
-    def run(self, input: str, output: str) -> dict:
+    def run(self, input: str, output: str) -> Tuple[dict, dict, str]:
         """
         Collect metrics from the provided data.
+
+        Args:
+            input_path (str): Path to the input directory containing .cpp files.
+            output_path (str): Path to the output directory where results will be stored.
+
+        Returns:
+            Tuple[dict, dict, str]: A tuple containing:
+                - Simplified metrics result
+                - Detailed output
+                - Logs
+        """
+        raise NotImplementedError("Need to implement.")
+    
+    def generate_report(self, input: str, output: str, results: dict, log: str) -> bool:
+        """
+        Generate a report from the collected metrics.
+        This method can be overridden by plugins to customize report generation.
         """
         raise NotImplementedError("Need to implement.")
