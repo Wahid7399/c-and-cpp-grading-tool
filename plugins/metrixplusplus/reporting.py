@@ -101,6 +101,8 @@ def generate_html_report(metrics: dict) -> None:
 
     rows = []
     for key, val in metrics.items():
+        if key in ["halstead_n1", "halstead_n2", "halstead_N1", "halstead_N2"]:
+            continue
         t = thresholds.get(key, {})
         desc = descriptions.get(key, "No description available.")
         tips = improvement_tips.get(key, [])
@@ -119,13 +121,14 @@ def generate_html_report(metrics: dict) -> None:
 
     html = f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Code Metrics Report</title>
+<title>Software Quality Report</title>
 <style>
 :root {{ --bg:#0f172a; --panel:#111827; --card:#0b1220; --text:#e5e7eb; --muted:#94a3b8; --accent:#60a5fa; }}
 * {{ box-sizing:border-box; }}
 body {{ margin:0; padding:24px; background:var(--bg); color:var(--text); font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; }}
 header {{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:20px; border-bottom:1px solid #1f2937; padding-bottom:12px; }}
 h1 {{ margin:0; font-size:28px; }}
+.wrapper {{ max-width: 1000px; margin: 40px auto; padding: 0 16px; }}
 .meta {{ color:var(--muted); font-size:14px; }}
 .summary-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin:16px 0 28px; }}
 .summary-tile {{ background:var(--panel); padding:14px 16px; border-radius:14px; border:1px solid #1f2937; }}
@@ -145,8 +148,9 @@ details.tips summary {{ cursor:pointer; color:#cbd5e1; }}
 footer {{ margin-top:28px; color:#94a3b8; font-size:12px; }}
 </style></head>
 <body>
+<div class="wrapper">
 <header>
-    <h1>Code Quality Report</h1>
+    <h1>Software Quality Report</h1>
     <div class="meta">Generated {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>
 </header>
 
@@ -164,6 +168,7 @@ footer {{ margin-top:28px; color:#94a3b8; font-size:12px; }}
 <main>{''.join(rows)}</main>
 
 <footer><p><strong>Notes:</strong> Thresholds are heuristic guidelines; interpret within your project’s context.</p></footer>
+</div>
 </body></html>
     """
 

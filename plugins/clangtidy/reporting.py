@@ -111,7 +111,7 @@ def generate_html_report(results: dict, log: str):
     }
 
     metrics = results.get("metrics", {})
-    raw_metrics = results.get("raw_metrics", {})
+    raw_metrics = results.get("raw", {})
     processed_files = results.get("processed_files", [])
 
     # Helper: shorten full absolute paths to relative-ish (if present in processed_files)
@@ -283,6 +283,9 @@ def generate_html_report(results: dict, log: str):
             """
             rows.append(row_html)
 
+        if not rows:
+          rows.append('<tr><td colspan="2">🎉 No issues found</td></tr>')
+
         return "\n".join(rows)
 
     def render_issue_item(issue):
@@ -378,7 +381,7 @@ def generate_html_report(results: dict, log: str):
     font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
     line-height: 1.5;
   }}
-  .container {{ max-width: 1100px; margin: 0 auto; }}
+  .container {{ max-width: 1000px; margin: 40px auto; padding: 0 16px; }}
   h1, h2, h3 {{ margin: 0.5rem 0 0.75rem; }}
   .muted {{ color: var(--muted); font-size: 0.9em; }}
   .cards {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin: 1rem 0 1.5rem; }}

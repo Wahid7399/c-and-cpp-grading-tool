@@ -41,3 +41,11 @@ class BasePlugin:
         This method can be overridden by plugins to customize report generation.
         """
         raise NotImplementedError("Need to implement.")
+
+class TestPlugin(BasePlugin):
+    def setup_tests(self, test_file: str):
+        """
+        Setup the test plugin with the provided test file.
+        This method should be overridden by test plugins to load and prepare tests.
+        """
+        raise NotImplementedError("Need to implement.")

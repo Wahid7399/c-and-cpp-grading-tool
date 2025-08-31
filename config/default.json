@@ -1,15 +1,10 @@
 {
     "python_slug": "python3",
     "plugins": {
-        "metrixplusplus": {
+        "doctest": {
             "enabled": true,
-            "metrics": [
-                "std.code.halstead.all",
-                "std.code.maintindex.simple",
-                "std.code.complexity.cyclomatic",
-                "std.code.lines.code",
-                "std.code.lines.comments",
-                "std.code.ratio.comments"
+            "extra_args": [
+                "-std=c++17"
             ]
         },
         "clangtidy": {
@@ -22,12 +17,22 @@
                 "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
             ]
         },
+        "metrixplusplus": {
+            "enabled": true,
+            "metrics": [
+                "std.code.halstead.all",
+                "std.code.maintindex.simple",
+                "std.code.complexity.cyclomatic",
+                "std.code.lines.code",
+                "std.code.lines.comments",
+                "std.code.ratio.comments"
+            ]
+        },
         "valgrind": {
-            "enabled": false,
-            "command": "valgrind"
+            "enabled": true
         },
         "cppcheck": {
-            "enabled": true,
+            "enabled": false,
             "command": "cppcheck"
         }
     }

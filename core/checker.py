@@ -1,22 +1,55 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List
 from config import settings
-from plugins import plugin_list
+from plugins import metric_plugins, test_plugins, BasePlugin
 from zipfile import ZipFile
 from .reporting import build_single_report
 import shutil
 import os
+import sys
+
+all_plugins = {**test_plugins, **metric_plugins}
 
 def init() -> dict:
     """
     Run the quality scorer on the provided input and output paths.
     """
     # Loop through all plugins and initialize them
-    for plugin in plugin_list.keys():
-        if hasattr(settings.plugins, plugin) and settings.plugins[plugin].enabled:
-            plugin_instance = plugin_list[plugin]
-            plugin_instance.initialize()
+    for plugin in all_plugins.keys():
+        if not hasattr(settings.plugins, plugin) or not settings.plugins[plugin].enabled:
+            continue
+        plugin_instance = all_plugins[plugin]
+        plugin_instance.initialize()
     print("")
+
+def setup_tests(tests: str):
+    """
+    Setup the tests if any test framework is enabled.
+    """
+    if not tests:
+        return
+    for plugin in test_plugins.keys():
+        if not hasattr(settings.plugins, plugin) or not settings.plugins[plugin].enabled:
+            continue
+        plugin_instance = test_plugins[plugin]
+        if not plugin_instance.setup_tests(tests):
+            sys.exit(1)
+    print("")
+
+def generate_report(plugin_instance, reports, input, output_path, detailed_output, log):
+    """
+    Generate a report from the collected metrics for plugin_instance,
+    add to the reports list if a report was generated.
+    """
+    has_report = plugin_instance.generate_report(input, output_path, detailed_output, log)
+    if has_report:
+        # get relative path from output_path
+        relative_path = os.path.relpath(os.path.join(output_path, f".{plugin_instance.slug}", "report.html"), output_path)
+        reports.append({
+            "name": plugin_instance.report_name,
+            "description": plugin_instance.description,
+            "path": relative_path
+        })
 
 def run(input: str, output: str) -> dict:
     """
@@ -29,22 +62,14 @@ def run(input: str, output: str) -> dict:
         os.makedirs(output_path)
 
     # Loop through all plugins and run them
-    results = {}
-    reports = []
-    for plugin in plugin_list.keys():
-        if hasattr(settings.plugins, plugin) and settings.plugins[plugin].enabled:
-            plugin_instance = plugin_list[plugin]
-            metrics, detailed_output, log = plugin_instance.run(input, output)
-            results.update(metrics)
-            has_report = plugin_instance.generate_report(input, output, detailed_output, log)
-            if has_report:
-                # get relative path from output_path
-                relative_path = os.path.relpath(os.path.join(output_path, f".{plugin_instance.slug}", "report.html"), output_path)
-                reports.append({
-                    "name": plugin_instance.report_name,
-                    "description": plugin_instance.description,
-                    "path": relative_path
-                })
+    results, reports = {}, []
+    for plugin in all_plugins.keys():
+        if not hasattr(settings.plugins, plugin) or not settings.plugins[plugin].enabled:
+            continue
+        plugin_instance: BasePlugin = all_plugins[plugin]
+        metrics, detailed_output, log = plugin_instance.run(input, output)
+        results.update(metrics)
+        generate_report(plugin_instance, reports, input, output_path, detailed_output, log)
     if reports:
         build_single_report(reports, output)
 

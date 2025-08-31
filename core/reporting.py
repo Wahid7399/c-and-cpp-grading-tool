@@ -34,6 +34,7 @@ def build_single_report(items, output_path, title="Quality Metrics Report") -> N
     margin: 0; padding: 28px; background: var(--bg); color: var(--text);
     font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
   }}
+  .wrapper {{ max-width: 1000px; margin: 40px auto; padding: 0 16px; }}
   header {{
     display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
     margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--soft);
@@ -42,7 +43,7 @@ def build_single_report(items, output_path, title="Quality Metrics Report") -> N
   .meta {{ color: var(--muted); font-size: 13px; }}
   .grid {{
     display: grid; gap: 14px;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(315px, 1fr));
   }}
   .card {{
     background: linear-gradient(180deg, var(--panel), var(--soft));
@@ -75,31 +76,33 @@ def build_single_report(items, output_path, title="Quality Metrics Report") -> N
 </style>
 </head>
 <body>
-  <header>
-    <h1>{title}</h1>
-    <div class="meta">Generated {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>
-  </header>
+  <div class="wrapper">
+    <header>
+      <h1>{title}</h1>
+      <div class="meta">Generated {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>
+    </header>
 
-  <div class="toolbar">
-    <input class="search" id="search" placeholder="Filter cards by name or description…" oninput="filterCards(this.value)">
-  </div>
+    <div class="toolbar">
+      <input class="search" id="search" placeholder="Filter cards by name or description…" oninput="filterCards(this.value)">
+    </div>
 
-  <div class="grid" id="grid">
-    {''.join(card_html)}
-  </div>
+    <div class="grid" id="grid">
+      {''.join(card_html)}
+    </div>
 
-<script>
-  function normalize(s) {{ return (s||'').toLowerCase(); }}
-  function filterCards(q) {{
-    const needle = normalize(q);
-    const cards = document.querySelectorAll('.card');
-    for (const c of cards) {{
-      const name = normalize(c.querySelector('.card-name')?.textContent);
-      const desc = normalize(c.querySelector('.card-desc')?.textContent);
-      c.style.display = (name.includes(needle) || desc.includes(needle)) ? '' : 'none';
+  <script>
+    function normalize(s) {{ return (s||'').toLowerCase(); }}
+    function filterCards(q) {{
+      const needle = normalize(q);
+      const cards = document.querySelectorAll('.card');
+      for (const c of cards) {{
+        const name = normalize(c.querySelector('.card-name')?.textContent);
+        const desc = normalize(c.querySelector('.card-desc')?.textContent);
+        c.style.display = (name.includes(needle) || desc.includes(needle)) ? '' : 'none';
+      }}
     }}
-  }}
-</script>
+  </script>
+  </div>
 </body>
 </html>"""
     with open(os.path.join(output_path, "report.html"), "w") as f:

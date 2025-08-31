@@ -55,6 +55,11 @@ python main.py --input <input_dir> --output <output_dir> [options]
 python main.py --input ./examples/0 --output ./test_0
 ```
 
+### Run with tests
+```bash
+python3 main.py --input examples/2/factorials --output ./test_2 --tests examples/2/test_factorials.cpp
+```
+
 ### Multi-folder run
 ```bash
 python main.py --input ./examples/1 --output ./test_1 --multifolder --threads 4
@@ -137,7 +142,7 @@ Extend **Quality Scorer** with custom plugins that collect metrics from your sou
 - Each plugin subclasses `BasePlugin` and implements two methods:
   - `initialize()` — prepare dependencies (download tools, set up folders, etc.).
   - `run(input_path, output_path) -> dict` — analyze code and return a **flat dict of metrics**.
-- Plugins are registered in `plugins/__init__.py` and discovered via a `plugin_list` map.
+- Plugins are registered in `plugins/__init__.py` and discovered via a `metric_plugins` dict.
 - At runtime, the tool calls `initialize()` (if enabled) and then `run(...)`.  
 - Results from each plugin are merged into the final report.
 
@@ -170,7 +175,7 @@ class BasePlugin:
 
 ### Registering plugins
 
-Declare your plugin class and add it to `plugin_list`:
+Declare your plugin class and add it to `metric_plugins` dict:
 
 ```python
 from .base import BasePlugin
@@ -179,7 +184,7 @@ from .clangtidy import ClangTidyPlugin
 
 __all__ = ["BasePlugin", "MetrixPlusPlusPlugin", "ClangTidyPlugin"]
 
-plugin_list = {
+metric_plugins = {
     "metrixplusplus": MetrixPlusPlusPlugin(),
     "clangtidy": ClangTidyPlugin(),
 }
@@ -237,7 +242,7 @@ class MyAwesomePlugin(BasePlugin):
 
 ```python
 from .myawesome import MyAwesomePlugin
-plugin_list["myawesome"] = MyAwesomePlugin()
+metric_plugins["myawesome"] = MyAwesomePlugin()
 ```
 
 3. **Enable it** in your config (example `config/default.json`):

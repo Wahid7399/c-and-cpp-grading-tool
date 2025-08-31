@@ -77,7 +77,7 @@ class MetrixPlusPlusPlugin(BasePlugin):
 
         if not cpp_files:
             print(f"❌ No .cpp files found in {input_path}")
-            return {}
+            return {}, {}, ""
 
         self.__collect(pwd, input_path)
 
@@ -113,7 +113,7 @@ class MetrixPlusPlusPlugin(BasePlugin):
 
         results = {
             "metrics": metrics,
-            "raw_metrics": raw
+            "raw": raw
         }
 
         with open(os.path.join(pwd, "results.json"), "w") as metrics_file:

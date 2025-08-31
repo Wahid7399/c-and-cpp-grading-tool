@@ -1,61 +1,48 @@
-import subprocess
-import sys
+from pathlib import Path
+from subprocess import TimeoutExpired
+from tools import docker
+from tools.utils import find_entry_point
 from typing import Tuple
 from config import settings
 from plugins import BasePlugin
-import platform
+from .helpers import parse_valgrind_stdout
+from .reporting import generate_html_report
+import sys
+import os
+import shutil
 
 class ValgrindPlugin(BasePlugin):
     """
     Valgrind Plugin for Code Quality Scorer
     """
+    DOCKER_IMAGE = "lumsdocker/cs200env:x86_64"
 
     def __init__(self):
         super(ValgrindPlugin, self).__init__(
             name="Valgrind",
             report_name="Memory Issues Report",
-            description="Integrate Valgrind metrics into Code Quality Scorer",
+            description="Report on memory leaks and memory management issues",
             slug="valgrind",
             version="20.1.0"
         )
-
-    def _run(self, cmd):
-        print(f"→ Running: {cmd}")
-        result = subprocess.run(cmd, shell=True)
-        if result.returncode != 0:
-            print(f"Command failed: {cmd}")
-            sys.exit(1)
 
     def initialize(self):
         if settings.plugins.valgrind is None or settings.plugins.valgrind.enabled is not True:
             return
 
-        # Check if valgrind is installed
+        # Check if valgrind docker image is available
         try:
-            subprocess.run(
-                [settings.plugins.valgrind.command, "--version"],
-                check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-            )
-            print("✅ Valgrind is installed")
-            return
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            print("❌ Valgrind is not installed, attempting an auto-install.")
+            docker.ensure_docker()
+            if not docker.image_exists(ValgrindPlugin.DOCKER_IMAGE):
+                print(f"❌ Docker image '{ValgrindPlugin.DOCKER_IMAGE}' not found. Pulling `{ValgrindPlugin.DOCKER_IMAGE}`")
+                docker.pull_image(ValgrindPlugin.DOCKER_IMAGE)
+            if not docker.image_exists(ValgrindPlugin.DOCKER_IMAGE):
+                raise Exception("Docker image not found after pull, please check...")
+        except Exception as e:
+            print(f"❌ {e}")
+            sys.exit(1)
 
-        if platform.system() == "Darwin":
-            print("❌ Not supported")
-            raise NotImplementedError("Valgrind installation is not supported on macOS.")
-        elif platform.system() == "Linux":
-            subprocess.run(
-                ["sudo", "apt-get", "install", "-y", "valgrind"],
-                check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-            )
-            print("✅ Valgrind has been installed via apt-get")
-        elif platform.system() == "Windows":
-            print("❌ Valgrind auto-installation not supported on Windows. Please install it manually from https://valgrind.org/")
-            raise NotImplementedError("Valgrind installation is not supported on Windows.")
-        else:
-            print("❌ Valgrind is not installed and auto-install is not supported. Please install it using your system's package manager.")
-            raise NotImplementedError("Valgrind installation is not supported.")
+        print("✅ Valgrind is installed")
 
     def run(self, input_path, output_path) -> Tuple[dict, dict, str]:
         """
@@ -73,11 +60,64 @@ class ValgrindPlugin(BasePlugin):
         """
         if settings.plugins.valgrind is None or settings.plugins.valgrind.enabled is not True:
             return {}, {}, ""
+        
+        pwd = os.path.join(output_path, f".{self.slug}")
+        os.makedirs(pwd, exist_ok=True)
 
-        return {}, {}, "Valgrind integration is not yet implemented."
+        main_file_path = find_entry_point(input_path)
+        if main_file_path is None:
+            return {}, {}, "No main function found"
+        main_file_path = os.path.relpath(main_file_path, input_path)
+
+        compile_cmd = f"mkdir -p valgrind && g++ -std=c++17 {main_file_path} -o valgrind/a.out"
+        try:
+            comp = docker.run(ValgrindPlugin.DOCKER_IMAGE, input_path, compile_cmd, timeout=15)
+        except TimeoutExpired as e:
+            return {}, {}, f"Valgrind execution timed out: {e}"
+        if comp.returncode != 0:
+            return {}, {}, "Compilation failed."
+
+        # prog_args = " ".join(shlex.quote(a) for a in (settings.plugins.valgrind.args or []))
+        run_cmd = f"valgrind --leak-check=full --error-exitcode=1 valgrind/a.out"
+        try:
+            res = docker.run(ValgrindPlugin.DOCKER_IMAGE, input_path, run_cmd, timeout=15)
+        except TimeoutExpired as e:
+            return {}, {}, f"Valgrind execution timed out: {e}"
+
+        with open(os.path.join(pwd, "data.log"), "w") as f:
+            f.write(res.stdout)
+            f.write(res.stderr)
+
+        shutil.rmtree(Path(input_path) / "valgrind", ignore_errors=True)
+
+        results = parse_valgrind_stdout(res.stderr)
+
+        metrics = {
+            "valgrind_errors": results.get("error_summary", {}).get("errors", 0),
+            "valgrind_leaks": (results.get("leak_summary") or {}).get("definitely lost", 0),
+        }
+
+        detailed = {
+            "metrics": metrics,
+            "raw": results,
+        }
+
+        with open(os.path.join(pwd, "results.json"), "w") as f:
+            import json
+            json.dump(detailed, f, indent=4)
+
+        return metrics, results, "Valgrind integration is not yet implemented."
 
     def generate_report(self, input_path: str, output_path: str, results: dict, log: str) -> None:
         """
         Generate a report from the collected metrics.
         """
-        return ""
+        if not results:
+            return "No results to report."
+
+        html = generate_html_report(results)
+
+        pwd = os.path.join(output_path, f".{self.slug}")
+        with open(os.path.join(pwd, "report.html"), "w") as metrics_file:
+            metrics_file.write(html)
+        return True

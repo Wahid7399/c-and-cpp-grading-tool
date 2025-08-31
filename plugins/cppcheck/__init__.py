@@ -1,11 +1,11 @@
 from typing import Tuple
 from config import settings
 from plugins import BasePlugin
+from tools.utils import shell_run
 from glob import glob
 from .reporting import generate_html_report
 import os
 import subprocess
-import sys
 import xml.etree.ElementTree as ET
 import platform
 import json
@@ -24,13 +24,6 @@ class CppcheckPlugin(BasePlugin):
             version="20.1.0"
         )
 
-    def _run(self, cmd):
-        print(f"→ Running: {cmd}")
-        result = subprocess.run(cmd, shell=True)
-        if result.returncode != 0:
-            print(f"Command failed: {cmd}")
-            sys.exit(1)
-
     def initialize(self):
         if settings.plugins.cppcheck is None or settings.plugins.cppcheck.enabled is not True:
             return
@@ -47,10 +40,10 @@ class CppcheckPlugin(BasePlugin):
             print("❌ Cppcheck is not installed, attempting an auto-install.")
 
         if platform.system() == "Darwin":
-            self._run("brew install cppcheck")
+            shell_run("brew install cppcheck")
             print("✅ Cppcheck has been installed via Homebrew")
         elif platform.system() == "Linux":
-            self._run("sudo apt-get install -y cppcheck")
+            shell_run("sudo apt-get install -y cppcheck")
             print("✅ Cppcheck has been installed via apt-get")
         elif platform.system() == "Windows":
             print("❌ Cppcheck auto-installation not supported on Windows. Please install it manually from https://cppcheck.sourceforge.io/")
@@ -112,7 +105,7 @@ class CppcheckPlugin(BasePlugin):
         cpp_files = glob(os.path.join(input_path, "**", "*.cpp"), recursive=True)
         if not cpp_files:
             print(f"❌ No .cpp files found in {input_path}")
-            return {}
+            return {}, {}, ""
         
         output = os.path.join(pwd, "cppcheck.xml")
         self.__test_code(pwd, input_path, output)

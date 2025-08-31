@@ -36,7 +36,10 @@ class Settings:
             self.settings = {}
         for key, value in data.items():
             if isinstance(value, dict):
-                self.settings[key] = Settings()
+                if key not in self.settings:
+                    self.settings[key] = Settings()
+                elif not isinstance(self.settings[key], Settings):
+                    raise ValueError(f"Cannot merge non-dict setting {key}")
                 self.settings[key].load(value)
             else:
                 self.settings[key] = value
@@ -50,6 +53,24 @@ class Settings:
         with open(file, "r") as f:
             self.load(json.load(f))
 
+    def to_dict(self) -> dict:
+        def recurse(obj):
+            if isinstance(obj, Settings):
+                return {k: recurse(v) for k, v in obj.settings.items()}
+            return obj
+
+        return recurse(self)
+
+def load_file(file: str) -> Settings:
+    if not os.path.exists(file):
+        print(f"❌ Config file {file} does not exist.")
+        exit(1)
+    try:
+        with open(file, "r") as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        print(f"❌ Config file {file} is not a valid JSON.")
+        exit(1)
 
 settings = None
 if not settings:

@@ -228,7 +228,7 @@ class ClangTidyPlugin(BasePlugin):
 
         results = {
             "metrics": report.get("by_concept", {}),
-            "raw_metrics": report,
+            "raw": report,
             "processed_files": processed_files,
             "skipped_files": skipped_files,
         }
