@@ -191,11 +191,13 @@ hr.div {{ border: 0; border-top: 1px solid var(--border); margin: 20px 0; }}
       rows.append('<tr><td colspan="3">🎉 No issues found</td></tr>')
   table_html = "\n".join(rows)
 
-  errors_html = []
+  errors_html, errors = [], {}
   for (cat, sev), items in grouped.items():
       errors_html.append(f'<div class="section-title">{escape(cat)}</div>')
       for e in items:
           stack = "\n".join(escape(line) for line in e.get("details", []))
+          explain = simple_explanation(cat)
+          errors[e["title"]] = explain
           errors_html.append(f"""
           <div class="card">
             <div class="hstack">
@@ -203,7 +205,7 @@ hr.div {{ border: 0; border-top: 1px solid var(--border); margin: 20px 0; }}
               {pill(cat, sev)}
             </div>
             <div class="stack" style="margin-top:8px;">
-              <div class="tip">💡 {escape(simple_explanation(cat))}</div>
+              <div class="tip">💡 {escape(explain)}</div>
               <div class="code">{e['title']}<br />{stack}</div>
             </div>
           </div>
@@ -238,4 +240,4 @@ hr.div {{ border: 0; border-top: 1px solid var(--border); margin: 20px 0; }}
   """
 
   html_doc = head + tail
-  return html_doc
+  return html_doc, errors

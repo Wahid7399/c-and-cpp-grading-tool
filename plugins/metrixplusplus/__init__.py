@@ -81,13 +81,13 @@ class MetrixPlusPlusPlugin(BasePlugin):
 
         self.__collect(pwd, input_path)
 
-        data = self.__view(pwd)
+        data = self.__view(pwd, input_path)
 
         raw = self.__parse_metrics(data)
 
         metrics = {}
         if "std.code.complexity:cyclomatic" in raw:
-            metrics["cyclomatic"] = raw["std.code.complexity:cyclomatic"]["stats"]["Total"]
+            metrics["cyclomatic"] = raw["std.code.complexity:cyclomatic"]["stats"]["Average"]
         if "std.code.lines:code" in raw:
             metrics["lines_of_code"] = raw["std.code.lines:code"]["stats"]["Total"]
         if "std.code.lines:comments" in raw:
@@ -103,13 +103,13 @@ class MetrixPlusPlusPlugin(BasePlugin):
         if "std.code.halstead_base:N2" in raw:
             metrics["halstead_N2"] = raw["std.code.halstead_base:N2"]["stats"]["Total"]
         if "std.code.halstead_adv:H_Volume" in raw:
-            metrics["halstead_volume"] = raw["std.code.halstead_adv:H_Volume"]["stats"]["Total"]
+            metrics["halstead_volume"] = raw["std.code.halstead_adv:H_Volume"]["stats"]["Average"]
         if "std.code.halstead_adv:H_Difficulty" in raw:
-            metrics["halstead_difficulty"] = raw["std.code.halstead_adv:H_Difficulty"]["stats"]["Total"]
+            metrics["halstead_difficulty"] = raw["std.code.halstead_adv:H_Difficulty"]["stats"]["Average"]
         if "std.code.halstead_adv:H_Effort" in raw:
-            metrics["halstead_effort"] = raw["std.code.halstead_adv:H_Effort"]["stats"]["Total"]
+            metrics["halstead_effort"] = raw["std.code.halstead_adv:H_Effort"]["stats"]["Average"]
         if "std.code.mi:simple" in raw:
-            metrics["maintainability_index"] = raw["std.code.mi:simple"]["stats"]["Total"]
+            metrics["maintainability_index"] = raw["std.code.mi:simple"]["stats"]["Average"]
 
         results = {
             "metrics": metrics,
@@ -149,7 +149,7 @@ class MetrixPlusPlusPlugin(BasePlugin):
         except subprocess.CalledProcessError as e:
             print(f"❌ Error running Metrix++: {e}")
 
-    def __view(self, pwd: str):
+    def __view(self, pwd: str, input_path: str):
         # Run Metrix++ view, store return value in output_path, process it regex
         command = [
             settings.python_slug,
@@ -157,6 +157,8 @@ class MetrixPlusPlusPlugin(BasePlugin):
             "view",
             "--db-file",
             f"{pwd}/metrixpp.db",
+            "--",
+            input_path,
         ]
         try:
             # Run the command and capture the output
@@ -226,9 +228,25 @@ class MetrixPlusPlusPlugin(BasePlugin):
         if not results:
             return "No results to report."
 
-        html = generate_html_report(results["metrics"])
+        html, summary = generate_html_report(results["metrics"])
 
         pwd = os.path.join(output_path, f".{self.slug}")
         with open(os.path.join(pwd, "report.html"), "w") as metrics_file:
             metrics_file.write(html)
-        return True
+        return summary
+
+    def get_weights(self) -> dict:
+        return {
+            "cyclomatic": {"direction": -1, "weight": 1.0},
+            "halstead_difficulty": {"direction": -1, "weight": 1.0},
+            "halstead_effort": {"direction": -1, "weight": 1.0},
+            "halstead_volume": {"direction": -1, "weight": 1.0},
+            "lines_of_comments": {"direction": +1, "weight": 1.0},
+            "maintainability_index": {"direction": +1, "weight": 1.0},
+            "comment_ratio": {"direction": +1, "weight": 1.0},
+            "halstead_n1": {"direction": -1, "weight": 0},
+            "halstead_n2": {"direction": -1, "weight": 0},
+            "halstead_N1": {"direction": -1, "weight": 0},
+            "halstead_N2": {"direction": -1, "weight": 0},
+            "lines_of_code": {"direction": +1, "weight": 0},
+        }

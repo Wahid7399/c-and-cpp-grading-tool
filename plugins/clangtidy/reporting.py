@@ -1,7 +1,7 @@
-import re
-import html
 from collections import defaultdict, Counter
 from datetime import datetime
+import re
+import html
 
 def generate_html_report(results: dict, log: str):
     """
@@ -236,7 +236,7 @@ def generate_html_report(results: dict, log: str):
     #         """)
     #     return "\n".join(rows)
 
-    def render_check_breakdown():
+    def render_check_breakdown(as_html=True):
         # Build category -> list of items and track totals, preserving order by frequency
         cat_items = defaultdict(list)
         cat_totals = defaultdict(int)
@@ -262,8 +262,18 @@ def generate_html_report(results: dict, log: str):
                 parts.append(html.escape(tip))
             li = f"<li><span class='pill'>{cnt}</span> {' · '.join(parts)}</li>"
 
-            cat_items[cat_name].append(li)
+            if as_html:
+                cat_items[cat_name].append(li)
+            else:
+                cat_items[cat_name].append({
+                    "check": check,
+                    "count": cnt,
+                    "tip": tip,
+                })
             cat_totals[cat_name] += cnt
+
+        if not as_html:
+            return {"cat_totals": cat_totals, "cat_items": cat_items}
 
         # Render a table where each category is a single row with a nested <ul> of its checks
         rows = []
@@ -480,4 +490,4 @@ def generate_html_report(results: dict, log: str):
 </body>
 </html>"""
 
-    return html_doc
+    return html_doc, render_check_breakdown(as_html=False)

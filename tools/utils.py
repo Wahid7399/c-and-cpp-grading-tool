@@ -1,3 +1,4 @@
+from zipfile import ZipFile
 from glob import glob
 import os
 import subprocess
@@ -21,3 +22,20 @@ def find_entry_point(_dir):
                 main_file_path = file
                 break
     return main_file_path
+
+def transpose_dict(data: dict) -> dict:
+    """
+    Transpose a dictionary of dictionaries.
+    """
+    transposed = {}
+    for roll, metrics in data.items():
+        for metric, value in metrics.items():
+            transposed.setdefault(metric, {})[roll] = value
+    return {
+        metric: dict(sorted(rolls.items()))
+        for metric, rolls in sorted(transposed.items())
+    }
+
+def get_latest_in_zip(zip_path):
+    with ZipFile(zip_path, 'r') as zf:
+        return max(info.date_time for info in zf.infolist())

@@ -20,9 +20,7 @@ def grade_from_pct(pct: float):
     return "F", "Let’s practice more, ask for help if needed."
 
 def generate_html_report(data: dict) -> str:
-    # Extract (with friendly defaults for a “student” vibe)
-    student = str(data.get("student", "Student"))
-    subject = str(data.get("subject", "Assessment"))
+    # Extract
     total_cases = int(data.get("total_cases", 0))
     passed = int(data.get("passed", 0))
     failed = int(data.get("failed", 0))
@@ -246,4 +244,8 @@ code {{ background:#0b1222; border:1px solid var(--border); border-radius:8px; p
 </html>
 """
 
-    return html_doc
+    return html_doc, {
+        "failures": failures,
+        "total_score": total_score,
+        "obtained_score": obtained,
+    }

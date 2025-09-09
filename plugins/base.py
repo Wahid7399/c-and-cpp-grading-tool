@@ -35,10 +35,17 @@ class BasePlugin:
         """
         raise NotImplementedError("Need to implement.")
     
-    def generate_report(self, input: str, output: str, results: dict, log: str) -> bool:
+    def generate_report(self, input: str, output: str, results: dict, log: str) -> dict:
         """
         Generate a report from the collected metrics.
         This method can be overridden by plugins to customize report generation.
+        """
+        raise NotImplementedError("Need to implement.")
+
+    def get_weights(self) -> dict:
+        """
+        Return the weights for the metrics collected by this plugin.
+        This method can be overridden by plugins to customize weights.
         """
         raise NotImplementedError("Need to implement.")
 

@@ -1,4 +1,3 @@
-from asyncio import log
 from pathlib import Path
 from typing import Tuple
 from config import settings
@@ -245,9 +244,19 @@ class ClangTidyPlugin(BasePlugin):
         if not results:
             return "No results to report."
 
-        html = generate_html_report(results, log)
+        html, summary = generate_html_report(results, log)
 
         pwd = os.path.join(output_path, ".clangtidy")
         with open(os.path.join(pwd, "report.html"), "w") as metrics_file:
             metrics_file.write(html)
-        return True
+        return summary
+
+    def get_weights(self) -> dict:
+        return {
+            "identifier_naming_violations": {"direction": -1, "weight": 1.0},
+            "cognitive_complexity_violations": {"direction": -1, "weight": 1.0},
+            "readability_violations": {"direction": -1, "weight": 1.0},
+            "correctness_violations": {"direction": -1, "weight": 1.0},
+            "performance_violations": {"direction": -1, "weight": 1.0},
+            "guidelines_violations": {"direction": -1, "weight": 1.0},
+        }

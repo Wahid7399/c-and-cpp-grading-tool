@@ -1,6 +1,7 @@
 from config import load_file, settings
-from core import checker, grader
+from core import checker
 from tools.report import dict_to_csv
+from tools.utils import transpose_dict
 import argparse
 import os
 
@@ -28,5 +29,7 @@ if args.multifolder:
 else:
     results = {args.input: checker.run(args.input, args.output)}
 
-dict_to_csv(results, os.path.join(args.output, "results.csv"))
-grader.run(results, os.path.join(args.output, "grades.csv"))
+dict_to_csv(transpose_dict(results), os.path.join(args.output, "raw_scores.csv"))
+
+if args.multifolder:
+    checker.grade(results, args.output)

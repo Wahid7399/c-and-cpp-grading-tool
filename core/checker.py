@@ -2,8 +2,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List
 from config import settings
 from plugins import metric_plugins, test_plugins, BasePlugin
+from tools.utils import get_latest_in_zip
 from zipfile import ZipFile
 from .reporting import build_single_report
+from . import grader
 import shutil
 import os
 import sys
@@ -41,14 +43,15 @@ def generate_report(plugin_instance, reports, input, output_path, detailed_outpu
     Generate a report from the collected metrics for plugin_instance,
     add to the reports list if a report was generated.
     """
-    has_report = plugin_instance.generate_report(input, output_path, detailed_output, log)
-    if has_report:
+    summary = plugin_instance.generate_report(input, output_path, detailed_output, log)
+    if summary:
         # get relative path from output_path
         relative_path = os.path.relpath(os.path.join(output_path, f".{plugin_instance.slug}", "report.html"), output_path)
         reports.append({
             "name": plugin_instance.report_name,
             "description": plugin_instance.description,
-            "path": relative_path
+            "path": relative_path,
+            "summary": summary
         })
 
 def run(input: str, output: str) -> dict:
@@ -97,7 +100,8 @@ def _multifolder_single_batch_run(input_dirs: List[str], output: str) -> dict:
                         if file.endswith('.zip'):
                             zip_paths.append(os.path.join(root, file))
                 if len(zip_paths) > 1:
-                    output_message += f"⚠️ Multiple zip files found in {dir_path}! This should not happen, please check.\n"
+                    output_message += f"⚠️ Multiple zip files found in {dir_path}! picking last modified.\n"
+                    zip_paths.sort(key=get_latest_in_zip, reverse=True)
                 for zip_path in zip_paths:
                     unzip_temp = os.path.join(dir_path, "unzipped")
                     with ZipFile(zip_path, 'r') as zip_ref:
@@ -110,6 +114,7 @@ def _multifolder_single_batch_run(input_dirs: List[str], output: str) -> dict:
                     sub_results = run(unzip_temp, os.path.join(output, dir_name))
                     results[dir_name] = sub_results
                     shutil.rmtree(unzip_temp, ignore_errors=True)
+                    break
             else:
                 if not any(file.endswith(('.c', '.h', '.cpp')) for root, dirs, files in os.walk(dir_path) for file in files):
                     output_message += f"⚠️ No C/C++ files found in {dir_path}, skipping\n"
@@ -147,3 +152,15 @@ def multifolder_run(input: str, output: str, num_threads: int) -> dict:
             for future in as_completed(futures):
                 results.update(future.result())
         return results
+
+def grade(results: dict, output: str):
+    """
+    Grade the results using the grader module.
+    """
+    weights = {}
+    for plugin in all_plugins.keys():
+        if not hasattr(settings.plugins, plugin) or not settings.plugins[plugin].enabled:
+            continue
+        plugin_instance: BasePlugin = all_plugins[plugin]
+        weights.update(plugin_instance.get_weights())
+    grader.run(results, weights, output)

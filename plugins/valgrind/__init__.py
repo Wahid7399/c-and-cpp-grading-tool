@@ -115,9 +115,15 @@ class ValgrindPlugin(BasePlugin):
         if not results:
             return "No results to report."
 
-        html = generate_html_report(results)
+        html, summary = generate_html_report(results)
 
         pwd = os.path.join(output_path, f".{self.slug}")
         with open(os.path.join(pwd, "report.html"), "w") as metrics_file:
             metrics_file.write(html)
-        return True
+        return summary
+
+    def get_weights(self) -> dict:
+        return {
+            "valgrind_errors": {"direction": -1, "weight": 1.0},
+            "valgrind_leaks": {"direction": -1, "weight": 1.0},
+        }

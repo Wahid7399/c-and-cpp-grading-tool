@@ -163,4 +163,11 @@ class CppcheckPlugin(BasePlugin):
         pwd = os.path.join(output_path, f".{self.slug}")
         with open(os.path.join(pwd, "report.html"), "w") as metrics_file:
             metrics_file.write(html)
-        return True
+        return {"summary": "No Summary Available"}
+
+    def get_weights(self) -> dict:
+        return {
+            "cppcheck_error_violations": {"direction": -1, "weight": 1.0},
+            "cppcheck_performance_violations": {"direction": -1, "weight": 1.0},
+            "cppcheck_style_violations": {"direction": -1, "weight": 1.0},
+        }

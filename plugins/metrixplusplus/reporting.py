@@ -172,4 +172,4 @@ footer {{ margin-top:28px; color:#94a3b8; font-size:12px; }}
 </body></html>
     """
 
-    return html
+    return html, metrics
