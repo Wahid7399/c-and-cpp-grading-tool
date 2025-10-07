@@ -1,5 +1,4 @@
 #include <iostream>
-#include "extra.cpp"
 using namespace std;
 
 int main() {

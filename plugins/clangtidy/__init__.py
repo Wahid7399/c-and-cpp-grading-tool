@@ -1,3 +1,4 @@
+import itertools
 from pathlib import Path
 from typing import Tuple
 from config import settings
@@ -197,7 +198,10 @@ class ClangTidyPlugin(BasePlugin):
         cmd = getattr(settings.plugins.clangtidy, "command", "clang-tidy")
 
         # Collect .cpp files
-        cpp_files = glob.glob(os.path.join(input_path, "**", "*.cpp"), recursive=True)
+        cpp_files = list(itertools.chain.from_iterable(
+            glob.glob(os.path.join(input_path, "**", ext), recursive=True)
+            for ext in ("*.c", "*.cpp")
+        ))
 
         if not cpp_files:
             print(f"❌ No .cpp files found in {input_path}")
@@ -253,10 +257,10 @@ class ClangTidyPlugin(BasePlugin):
 
     def get_weights(self) -> dict:
         return {
-            "identifier_naming_violations": {"direction": -1, "weight": 1.0},
-            "cognitive_complexity_violations": {"direction": -1, "weight": 1.0},
-            "readability_violations": {"direction": -1, "weight": 1.0},
-            "correctness_violations": {"direction": -1, "weight": 1.0},
-            "performance_violations": {"direction": -1, "weight": 1.0},
-            "guidelines_violations": {"direction": -1, "weight": 1.0},
+            "identifier_naming_violations": {"direction": -1, "weight": 1.0, "normalized": False},
+            "cognitive_complexity_violations": {"direction": -1, "weight": 1.0, "normalized": False},
+            "readability_violations": {"direction": -1, "weight": 1.0, "normalized": False},
+            "correctness_violations": {"direction": -1, "weight": 1.0, "normalized": False},
+            "performance_violations": {"direction": -1, "weight": 1.0, "normalized": False},
+            "guidelines_violations": {"direction": -1, "weight": 1.0, "normalized": False},
         }

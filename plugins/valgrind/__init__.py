@@ -69,9 +69,9 @@ class ValgrindPlugin(BasePlugin):
             return {}, {}, "No main function found"
         main_file_path = os.path.relpath(main_file_path, input_path)
 
-        compile_cmd = f"mkdir -p valgrind && g++ -std=c++17 {main_file_path} -o valgrind/a.out"
+        compile_cmd = f"mkdir -p valgrind && g++ -std=c++11 {main_file_path} -o valgrind/a.out"
         try:
-            comp = docker.run(ValgrindPlugin.DOCKER_IMAGE, input_path, compile_cmd, timeout=15)
+            comp = docker.run(ValgrindPlugin.DOCKER_IMAGE, input_path, compile_cmd, timeout=60)
         except TimeoutExpired as e:
             return {}, {}, f"Valgrind execution timed out: {e}"
         if comp.returncode != 0:
@@ -80,7 +80,7 @@ class ValgrindPlugin(BasePlugin):
         # prog_args = " ".join(shlex.quote(a) for a in (settings.plugins.valgrind.args or []))
         run_cmd = f"valgrind --leak-check=full --error-exitcode=1 valgrind/a.out"
         try:
-            res = docker.run(ValgrindPlugin.DOCKER_IMAGE, input_path, run_cmd, timeout=15)
+            res = docker.run(ValgrindPlugin.DOCKER_IMAGE, input_path, run_cmd, timeout=60)
         except TimeoutExpired as e:
             return {}, {}, f"Valgrind execution timed out: {e}"
 
@@ -124,6 +124,6 @@ class ValgrindPlugin(BasePlugin):
 
     def get_weights(self) -> dict:
         return {
-            "valgrind_errors": {"direction": -1, "weight": 1.0},
-            "valgrind_leaks": {"direction": -1, "weight": 1.0},
+            "valgrind_errors": {"direction": -1, "weight": 1.0, "normalized": False},
+            "valgrind_leaks": {"direction": -1, "weight": 1.0, "normalized": False},
         }

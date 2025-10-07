@@ -1,4 +1,5 @@
 import glob
+import itertools
 from pathlib import Path
 from config import settings
 from plugins import BasePlugin
@@ -73,7 +74,10 @@ class MetrixPlusPlusPlugin(BasePlugin):
             os.makedirs(pwd, exist_ok=True)
 
         # Collect .cpp files
-        cpp_files = glob.glob(os.path.join(input_path, "**", "*.cpp"), recursive=True)
+        cpp_files = list(itertools.chain.from_iterable(
+            glob.glob(os.path.join(input_path, "**", ext), recursive=True)
+            for ext in ("*.c", "*.cpp")
+        ))
 
         if not cpp_files:
             print(f"❌ No .cpp files found in {input_path}")
@@ -87,29 +91,29 @@ class MetrixPlusPlusPlugin(BasePlugin):
 
         metrics = {}
         if "std.code.complexity:cyclomatic" in raw:
-            metrics["cyclomatic"] = raw["std.code.complexity:cyclomatic"]["stats"]["Average"]
+            metrics["cyclomatic"] = raw.get("std.code.complexity:cyclomatic", {}).get("stats", {}).get("Average", 0)
         if "std.code.lines:code" in raw:
-            metrics["lines_of_code"] = raw["std.code.lines:code"]["stats"]["Total"]
+            metrics["lines_of_code"] = raw.get("std.code.lines:code", {}).get("stats", {}).get("Total", 0)
         if "std.code.lines:comments" in raw:
-            metrics["lines_of_comments"] = raw["std.code.lines:comments"]["stats"]["Total"]
+            metrics["lines_of_comments"] = raw.get("std.code.lines:comments", {}).get("stats", {}).get("Total", 0)
         if "std.code.ratio:comments" in raw:
-            metrics["comment_ratio"] = raw["std.code.ratio:comments"]["stats"]["Total"]
+            metrics["comment_ratio"] = raw.get("std.code.ratio:comments", {}).get("stats", {}).get("Total", 0)
         if "std.code.halstead_base:_n1" in raw:
-            metrics["halstead_n1"] = raw["std.code.halstead_base:_n1"]["stats"]["Total"]
+            metrics["halstead_n1"] = raw.get("std.code.halstead_base:_n1", {}).get("stats", {}).get("Total", 0)
         if "std.code.halstead_base:_n2" in raw:
-            metrics["halstead_n2"] = raw["std.code.halstead_base:_n2"]["stats"]["Total"]
+            metrics["halstead_n2"] = raw.get("std.code.halstead_base:_n2", {}).get("stats", {}).get("Total", 0)
         if "std.code.halstead_base:N1" in raw:
-            metrics["halstead_N1"] = raw["std.code.halstead_base:N1"]["stats"]["Total"]
+            metrics["halstead_N1"] = raw.get("std.code.halstead_base:N1", {}).get("stats", {}).get("Total", 0)
         if "std.code.halstead_base:N2" in raw:
-            metrics["halstead_N2"] = raw["std.code.halstead_base:N2"]["stats"]["Total"]
+            metrics["halstead_N2"] = raw.get("std.code.halstead_base:N2", {}).get("stats", {}).get("Total", 0)
         if "std.code.halstead_adv:H_Volume" in raw:
-            metrics["halstead_volume"] = raw["std.code.halstead_adv:H_Volume"]["stats"]["Average"]
+            metrics["halstead_volume"] = raw.get("std.code.halstead_adv:H_Volume", {}).get("stats", {}).get("Average", 0)
         if "std.code.halstead_adv:H_Difficulty" in raw:
-            metrics["halstead_difficulty"] = raw["std.code.halstead_adv:H_Difficulty"]["stats"]["Average"]
+            metrics["halstead_difficulty"] = raw.get("std.code.halstead_adv:H_Difficulty", {}).get("stats", {}).get("Average", 0)
         if "std.code.halstead_adv:H_Effort" in raw:
-            metrics["halstead_effort"] = raw["std.code.halstead_adv:H_Effort"]["stats"]["Average"]
+            metrics["halstead_effort"] = raw.get("std.code.halstead_adv:H_Effort", {}).get("stats", {}).get("Average", 0)
         if "std.code.mi:simple" in raw:
-            metrics["maintainability_index"] = raw["std.code.mi:simple"]["stats"]["Average"]
+            metrics["maintainability_index"] = raw.get("std.code.mi:simple", {}).get("stats", {}).get("Average", 0)
 
         results = {
             "metrics": metrics,
@@ -239,14 +243,14 @@ class MetrixPlusPlusPlugin(BasePlugin):
         return {
             "cyclomatic": {"direction": -1, "weight": 1.0},
             "halstead_difficulty": {"direction": -1, "weight": 1.0},
-            "halstead_effort": {"direction": -1, "weight": 1.0},
-            "halstead_volume": {"direction": -1, "weight": 1.0},
-            "lines_of_comments": {"direction": +1, "weight": 1.0},
-            "maintainability_index": {"direction": +1, "weight": 1.0},
-            "comment_ratio": {"direction": +1, "weight": 1.0},
+            "halstead_effort": {"direction": -1, "weight": 0.01},
+            "halstead_volume": {"direction": -1, "weight": 0.1},
+            "maintainability_index": {"direction": +1, "weight": 10.0},
+            "comment_ratio": {"direction": +1, "weight": 10.0},
             "halstead_n1": {"direction": -1, "weight": 0},
             "halstead_n2": {"direction": -1, "weight": 0},
             "halstead_N1": {"direction": -1, "weight": 0},
             "halstead_N2": {"direction": -1, "weight": 0},
+            "lines_of_comments": {"direction": +1, "weight": 0},
             "lines_of_code": {"direction": +1, "weight": 0},
         }

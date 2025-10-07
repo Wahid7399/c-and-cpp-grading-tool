@@ -5,7 +5,8 @@ from plugins import metric_plugins, test_plugins, BasePlugin
 from tools.utils import get_latest_in_zip
 from zipfile import ZipFile
 from .reporting import build_single_report
-from . import grader
+from . import relative_grader
+from . import absolute_grader
 import shutil
 import os
 import sys
@@ -78,7 +79,17 @@ def run(input: str, output: str) -> dict:
 
     return results
 
-def _multifolder_single_batch_run(input_dirs: List[str], output: str) -> dict:
+def run_single(input: str, output: str) -> dict:
+    """
+    Run the quality scorer on a single folder.
+    """
+    temp_dir = os.path.join(input, "unzipped")
+    shutil.copytree(input, temp_dir, dirs_exist_ok=True)
+    results = run(temp_dir, output)
+    shutil.rmtree(temp_dir, ignore_errors=True)
+    return results
+
+def _multifolder_single_batch_run(input_dirs: List[os.PathLike], output: str) -> dict:
     """
     Run the quality scorer on multiple folders.
     Loop through the main directory, go into each subfolder,
@@ -90,8 +101,10 @@ def _multifolder_single_batch_run(input_dirs: List[str], output: str) -> dict:
         output_message = ""
         if entry.is_dir():
             dir_path = entry.path
-            output_message += f"ℹ️ Processing {dir_path}\n"
+            output_message += f"ℹ️ Processed {dir_path}\n"
             dir_name = os.path.basename(dir_path)
+            unzip_temp = os.path.join(dir_path, "unzipped")
+            shutil.rmtree(unzip_temp, ignore_errors=True)
             # If a zip exists, unzip it and run the quality scorer
             if any(file.endswith('.zip') for root, dirs, files in os.walk(dir_path) for file in files):
                 zip_paths = []
@@ -120,8 +133,11 @@ def _multifolder_single_batch_run(input_dirs: List[str], output: str) -> dict:
                     output_message += f"⚠️ No C/C++ files found in {dir_path}, skipping\n"
                     print(output_message)
                     continue
-                sub_results = run(dir_path, os.path.join(output, dir_name))
+                temp_dir = os.path.join(dir_path, "unzipped")
+                shutil.copytree(dir_path, temp_dir, dirs_exist_ok=True)
+                sub_results = run(temp_dir, os.path.join(output, dir_name))
                 results[dir_name] = sub_results
+                shutil.rmtree(temp_dir, ignore_errors=True)
             print(output_message)
     return results
 
@@ -153,7 +169,7 @@ def multifolder_run(input: str, output: str, num_threads: int) -> dict:
                 results.update(future.result())
         return results
 
-def grade(results: dict, output: str):
+def grade(results: dict, output: str, grading: str):
     """
     Grade the results using the grader module.
     """
@@ -163,4 +179,7 @@ def grade(results: dict, output: str):
             continue
         plugin_instance: BasePlugin = all_plugins[plugin]
         weights.update(plugin_instance.get_weights())
-    grader.run(results, weights, output)
+    if grading == "relative":
+        relative_grader.run(results, weights, output)
+    else:
+        absolute_grader.run(results, weights, output)

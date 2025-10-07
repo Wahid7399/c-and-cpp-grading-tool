@@ -16,17 +16,3 @@ TEST_CASE("#2 factorial grows quickly. Score: 5") {
     CHECK(factorial(5) == 120);
     CHECK(factorial(6) == 720);
 }
-
-// CIN/COUT IO TEST
-
-TEST_CASE("#3 main: valid input prints factorial. Score: 5") {
-    auto out = RUN_IO("5\n");
-    CHECK(out.find("Enter a number: ") != -1);
-    CHECK(out.find("Factorial of 5 is 120") != -1);
-}
-
-TEST_CASE("#4 main: negative input handled by message. Score: 5") {
-    auto out = RUN_IO("-3\n");
-    CHECK(out.find("Enter a number: ") != -1);
-    CHECK(out.find("Factorial is not defined for negative numbers.") != -1);
-}

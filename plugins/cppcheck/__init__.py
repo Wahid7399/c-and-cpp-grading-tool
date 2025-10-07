@@ -1,3 +1,4 @@
+import itertools
 from typing import Tuple
 from config import settings
 from plugins import BasePlugin
@@ -102,7 +103,10 @@ class CppcheckPlugin(BasePlugin):
         pwd = os.path.join(output_path, f".{self.slug}")
         os.makedirs(pwd, exist_ok=True)
 
-        cpp_files = glob(os.path.join(input_path, "**", "*.cpp"), recursive=True)
+        cpp_files = list(itertools.chain.from_iterable(
+            glob.glob(os.path.join(input_path, "**", ext), recursive=True)
+            for ext in ("*.c", "*.cpp")
+        ))
         if not cpp_files:
             print(f"❌ No .cpp files found in {input_path}")
             return {}, {}, ""
@@ -167,7 +171,7 @@ class CppcheckPlugin(BasePlugin):
 
     def get_weights(self) -> dict:
         return {
-            "cppcheck_error_violations": {"direction": -1, "weight": 1.0},
-            "cppcheck_performance_violations": {"direction": -1, "weight": 1.0},
-            "cppcheck_style_violations": {"direction": -1, "weight": 1.0},
+            "cppcheck_error_violations": {"direction": -1, "weight": 1.0, "normalized": False},
+            "cppcheck_performance_violations": {"direction": -1, "weight": 1.0, "normalized": False},
+            "cppcheck_style_violations": {"direction": -1, "weight": 1.0, "normalized": False},
         }

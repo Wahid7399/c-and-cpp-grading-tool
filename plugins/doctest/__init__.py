@@ -2,9 +2,10 @@ from pathlib import Path
 from typing import Tuple
 from config import settings
 from plugins import TestPlugin
-from tools.utils import find_entry_point
+from tools.utils import create_single_entry_point, remove_single_entry_point
 from tools import docker
 from .reporting import generate_html_report
+from .util import run_individual_tests
 from subprocess import TimeoutExpired
 import os
 import subprocess
@@ -124,7 +125,13 @@ class DoctestPlugin(TestPlugin):
 
     def _execute_tests(self, pwd: str, input_path: str) -> Tuple[bool, str]:
         # Go through the input files, find one with a main func
-        main_file_path = find_entry_point(input_path)
+        # main_file_path = find_entry_point(input_path)
+        existing_main = None
+        if os.path.exists(os.path.join(input_path, "main.cpp")) and os.path.isfile(os.path.join(input_path, "main.cpp")):
+            with open(os.path.join(input_path, "main.cpp"), 'r') as f:
+                existing_main = f.read()
+
+        main_file_path = create_single_entry_point(input_path, entry_point="main.cpp")
         if main_file_path is None:
             return False, "No main function found"
 
@@ -145,84 +152,32 @@ class DoctestPlugin(TestPlugin):
 
         # Compile the code with doctest
         try:
+            # run_id = uuid.uuid4().hex[:8]
             extra = " ".join(shlex.quote(a) for a in (settings.plugins.doctest.extra_args or []))
-            compile_cmd = f"set -e; mkdir doctest; g++ {extra} doctest_main.cpp -o doctest/doctest_executable.out"
-            result = docker.run(DoctestPlugin.DOCKER_IMAGE, input_path, compile_cmd, 15)
+            compile_cmd = f"set -e; mkdir -p doctest; g++ {extra} doctest_main.cpp -o doctest/doctest_executable.out"
+            result = docker.run(DoctestPlugin.DOCKER_IMAGE, input_path, compile_cmd, 300)
             combined = (result.stdout or "") + "\n" + (result.stderr or "")
             with open(os.path.join(pwd, "compile.log"), "w") as f:
                 f.write(combined)
             if result.returncode != 0:
                 return False, combined
         except TimeoutExpired as e:
+            print(f"❌ Doctest - Compilation timed out.")
+            print(e)
             return False, "Compilation timed out"
         finally:
             if os.path.exists(prepared_main_path):
                 os.remove(prepared_main_path)
             if os.path.exists(doctest_header_dst):
                 os.remove(doctest_header_dst)
+            remove_single_entry_point(input_path, entry_point="main.cpp")
+            if existing_main is not None:
+                with open(os.path.join(input_path, "main.cpp"), 'w') as f:
+                    f.write(existing_main)
 
-        try:
-            result = docker.run(DoctestPlugin.DOCKER_IMAGE, input_path, "cd doctest; ./doctest_executable.out", 15)
-            combined = (result.stdout or "") + "\n" + (result.stderr or "")
-            with open(os.path.join(pwd, "data.log"), "w") as f:
-                f.write(combined)
-            return True, combined
-        except subprocess.TimeoutExpired as e:
-            return True, "Test execution timed out"
-        except Exception as e:
-            return False, f"Failed to run tests: {e}"
-        finally:
-            shutil.rmtree(os.path.join(input_path, "doctest"), ignore_errors=True)
-
-    def _parse_output(self, log: str) -> None:
-        summary_pattern = re.compile(r"\[doctest\] test cases:\s+(\d+)\s+\|\s+(\d+) passed\s+\|\s+(\d+) failed")
-        summary_match = summary_pattern.search(log)
-
-        if summary_match:
-            total_cases = int(summary_match.group(1))
-            passed_cases = int(summary_match.group(2))
-            failed_cases = int(summary_match.group(3))
-        else:
-            total_cases = passed_cases = failed_cases = 0
-
-        # --- Extract failed test details ---
-        fail_pattern = re.compile(
-            r"TEST CASE:\s+#(\d+)\s+(.*?)\. Score:\s+(\d+).*?"
-            r"ERROR: CHECK\(\s*(.*?)\s*\) is NOT correct!.*?"
-            r"values:\s+CHECK\(\s*(.*?)\s*\)",
-            re.S
+        return run_individual_tests(
+            docker, DoctestPlugin.DOCKER_IMAGE, input_path, pwd, per_test_timeout=15
         )
-
-        failures = []
-        for match in fail_pattern.finditer(log):
-            failures.append({
-                "number": int(match.group(1)),
-                "name": match.group(2).strip(),
-                "score": int(match.group(3)),
-                "failed_check": match.group(4).strip(),
-                "failed_value": match.group(5).strip()
-            })
-
-        total_score = sum(self.scoring.values())
-        obtained_score = total_score - sum(f['score'] for f in failures)
-        summary = {
-            "total_cases": total_cases,
-            "passed": passed_cases,
-            "failed": failed_cases,
-            "total_score": total_score,
-            "obtained_score": obtained_score,
-            "failures": failures,
-        }
-
-        scores = {}
-        for i in range(1, total_cases + 1):
-            if not any(f['number'] == i for f in failures):
-                scores[f"test_case_{i}"] = self.scoring.get(i, 0)
-            else:
-                scores[f"test_case_{i}"] = 0
-        
-        return summary, scores
-
 
     def run(self, input_path, output_path) -> Tuple[dict, dict, str]:
         """
@@ -250,7 +205,7 @@ class DoctestPlugin(TestPlugin):
         success, data = self._execute_tests(pwd, input_path)
         summary, scores = {}, {}
         if success:
-            summary, scores = self._parse_output(data)
+            summary, scores = data.get("summary", {}), data.get("scores", {})
 
         if not summary or not scores:
             summary = {
@@ -291,8 +246,9 @@ class DoctestPlugin(TestPlugin):
         return summary
 
     def get_weights(self) -> dict:
-        return {
-            "cppcheck_error_violations": {"direction": -1, "weight": 1.0},
-            "cppcheck_performance_violations": {"direction": -1, "weight": 1.0},
-            "cppcheck_style_violations": {"direction": -1, "weight": 1.0},
-        }
+        if not self.has_tests or not self.scoring:
+            return {}
+        weights = {}
+        for key, value in self.scoring.items():
+            weights[f"test_case_{key}"] = {"direction": 1, "weight": 1}#value}
+        return weights

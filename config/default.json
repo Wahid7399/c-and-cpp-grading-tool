@@ -4,7 +4,7 @@
         "doctest": {
             "enabled": true,
             "extra_args": [
-                "-std=c++17"
+                "-std=c++11"
             ]
         },
         "clangtidy": {
@@ -12,7 +12,7 @@
             "command": "clang-tidy",
             "config": null,
             "extra_args": [
-                "-std=c++17",
+                "-std=c++11",
                 "-isysroot", 
                 "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
             ]
