@@ -1,0 +1,111 @@
+{
+  "name": "quality-metrics-runner",
+  "displayName": "Quality Metrics Runner",
+  "description": "Run the quality-metrics Python CLI from VS Code.",
+  "version": "0.0.4",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:qualityMetrics.run"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "qualityMetrics.run",
+        "title": "Run Quality Metrics Analysis"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "qualityMetrics.run",
+          "when": "explorerResourceIsFolder",
+          "group": "navigation@100"
+        },
+        {
+          "command": "qualityMetrics.run",
+          "when": "explorerResourceIsFile",
+          "group": "navigation@101"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Quality Metrics",
+      "properties": {
+        "qualityMetrics.pythonPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional Python executable used for environment bootstrap. Leave empty to auto-detect (python3, then python; on Windows py -3)."
+        },
+        "qualityMetrics.scriptPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional path to quality-metrics main.py, relative to workspace root or absolute. Leave empty to use bundled tool."
+        },
+        "qualityMetrics.inputPath": {
+          "type": "string",
+          "default": "examples/0",
+          "description": "Input path passed to --input, relative to workspace root or absolute."
+        },
+        "qualityMetrics.outputPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional output path passed to --output. Leave empty to create/use a 'Quality Report' folder inside the selected input folder."
+        },
+        "qualityMetrics.testsPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional tests path for --tests, relative to workspace root or absolute."
+        },
+        "qualityMetrics.configPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional config path for --config, relative to workspace root or absolute."
+        },
+        "qualityMetrics.threads": {
+          "type": "number",
+          "default": 1,
+          "minimum": 1,
+          "description": "Number of threads for --threads."
+        },
+        "qualityMetrics.multifolder": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable --multifolder mode."
+        },
+        "qualityMetrics.checkZips": {
+          "type": "boolean",
+          "default": true,
+          "description": "Boolean value converted to --check-zips true/false."
+        },
+        "qualityMetrics.grading": {
+          "type": "string",
+          "enum": [
+            "relative",
+            "absolute"
+          ],
+          "default": "relative",
+          "description": "Grading mode for --grading."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "bundle:sync": "rm -rf bundled/quality-metrics && mkdir -p bundled/quality-metrics && rsync -a --delete --exclude '__pycache__' --exclude '.git' ../main.py ../config ../core ../plugins ../tools ../requirements.txt bundled/quality-metrics/",
+    "vscode:prepublish": "npm run bundle:sync && npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.5"
+  }
+}

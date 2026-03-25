@@ -283,3 +283,10 @@ cat results/.myawesome/results.json
 ```
 
 ---
+
+### VS Code Extension Compile
+```
+cd vscode-extension && npm i
+npx @vscode/vsce package --allow-missing-repository
+```
+Creates a vsix file

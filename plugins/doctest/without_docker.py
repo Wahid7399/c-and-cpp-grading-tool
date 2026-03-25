@@ -147,7 +147,7 @@ class DoctestPlugin(TestPlugin):
                 text=True
             )
             combined = (result.stdout or "") + "\n" + (result.stderr or "")
-            with open(os.path.join(pwd, "compile.log"), "w") as f:
+            with open(os.path.join(pwd, "compile.log"), "w", encoding='utf-8') as f:
                 f.write(combined)
             if result.returncode != 0:
                 return False, combined
@@ -169,7 +169,7 @@ class DoctestPlugin(TestPlugin):
                 timeout=30
             )
             combined = (result.stdout or "") + "\n" + (result.stderr or "")
-            with open(os.path.join(pwd, "data.log"), "w") as f:
+            with open(os.path.join(pwd, "data.log"), "w", encoding='utf-8') as f:
                 f.write(combined)
             return True, combined
         except subprocess.CalledProcessError as e:
@@ -271,7 +271,7 @@ class DoctestPlugin(TestPlugin):
             }
             scores = {f"test_case_{i}": 0 for i in range(1, (self.scoring and len(self.scoring) or 0) + 1)}
 
-        with open(os.path.join(pwd, "results.json"), "w") as f:
+        with open(os.path.join(pwd, "results.json"), "w", encoding='utf-8') as f:
             json.dump({"tests": scores, "raw": summary}, f, indent=4)
 
         return scores, summary, data
@@ -283,6 +283,6 @@ class DoctestPlugin(TestPlugin):
         html = generate_html_report(results)
 
         pwd = os.path.join(output_path, f".{self.slug}")
-        with open(os.path.join(pwd, "report.html"), "w") as metrics_file:
+        with open(os.path.join(pwd, "report.html"), "w", encoding='utf-8') as metrics_file:
             metrics_file.write(html)
         return True

@@ -104,7 +104,7 @@ def run_individual_tests(docker, image, input_path, pwd, per_test_timeout=15):
 
 def _write_log(pwd, logs, combined):
     try:
-        with open(os.path.join(pwd, "data.log"), "w") as f:
+        with open(os.path.join(pwd, "data.log"), "w", encoding='utf-8') as f:
             f.write(combined)
     except Exception:
         pass

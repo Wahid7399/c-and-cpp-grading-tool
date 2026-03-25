@@ -134,7 +134,7 @@ class MetrixPlusPlusPlugin(BasePlugin):
             "raw": raw
         }
 
-        with open(os.path.join(pwd, "results.json"), "w") as metrics_file:
+        with open(os.path.join(pwd, "results.json"), "w", encoding='utf-8') as metrics_file:
             json.dump(results, metrics_file, indent=4)
         return metrics, results, data
 
@@ -160,7 +160,7 @@ class MetrixPlusPlusPlugin(BasePlugin):
                 text=True
             )
             combined = (result.stdout or "") + "\n" + (result.stderr or "")
-            with open(os.path.join(pwd, "data.log"), "w") as f:
+            with open(os.path.join(pwd, "data.log"), "w", encoding='utf-8') as f:
                 f.write(combined)
             if result.returncode != 0:
                 raise subprocess.CalledProcessError(result.returncode, command)
@@ -249,7 +249,7 @@ class MetrixPlusPlusPlugin(BasePlugin):
         html, summary = generate_html_report(results["metrics"])
 
         pwd = os.path.join(output_path, f".{self.slug}")
-        with open(os.path.join(pwd, "report.html"), "w") as metrics_file:
+        with open(os.path.join(pwd, "report.html"), "w", encoding='utf-8') as metrics_file:
             metrics_file.write(html)
         return summary
 

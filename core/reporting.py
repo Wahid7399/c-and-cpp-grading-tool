@@ -232,19 +232,6 @@ def build_html(data: List[Dict[str, Any]], title: str = "Project Reports") -> st
     --radius-lg: 14px;
     --radius-md: 12px;
   }}
-  @media (prefers-color-scheme: light) {{
-    :root {{
-      --bg: #0f172a;
-      --panel: #ffffff;
-      --panel-2: #f0f3f9;
-      --text: #0e1320;
-      --muted: #46546d;
-      --faint: #6c7a92;
-      --accent: #2563eb;
-      --ring: rgba(37,99,235,0.20);
-      --shadow: 0 4px 18px rgba(19,28,45,0.08), inset 0 1px 0 rgba(255,255,255,0.6);
-    }}
-  }}
   * {{ box-sizing: border-box; }}
   html, body {{ height: 100%; }}
   body {{
@@ -401,7 +388,7 @@ def build_html(data: List[Dict[str, Any]], title: str = "Project Reports") -> st
 
 def build_single_report(items, output_path):
     html = build_html(items)
-    with open(os.path.join(output_path, "report.html"), "w") as f:
+    with open(os.path.join(output_path, "report.html"), "w", encoding='utf-8') as f:
         f.write(html)
 
 # def build_single_report(items, output_path, title="Quality Metrics Report") -> None:

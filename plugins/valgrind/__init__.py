@@ -84,7 +84,7 @@ class ValgrindPlugin(BasePlugin):
         except TimeoutExpired as e:
             return {}, {}, f"Valgrind execution timed out: {e}"
 
-        with open(os.path.join(pwd, "data.log"), "w") as f:
+        with open(os.path.join(pwd, "data.log"), "w", encoding='utf-8') as f:
             f.write(res.stdout)
             f.write(res.stderr)
 
@@ -102,7 +102,7 @@ class ValgrindPlugin(BasePlugin):
             "raw": results,
         }
 
-        with open(os.path.join(pwd, "results.json"), "w") as f:
+        with open(os.path.join(pwd, "results.json"), "w", encoding='utf-8') as f:
             import json
             json.dump(detailed, f, indent=4)
 
@@ -118,7 +118,7 @@ class ValgrindPlugin(BasePlugin):
         html, summary = generate_html_report(results)
 
         pwd = os.path.join(output_path, f".{self.slug}")
-        with open(os.path.join(pwd, "report.html"), "w") as metrics_file:
+        with open(os.path.join(pwd, "report.html"), "w", encoding='utf-8') as metrics_file:
             metrics_file.write(html)
         return summary
 

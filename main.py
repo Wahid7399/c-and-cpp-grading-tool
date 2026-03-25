@@ -7,6 +7,12 @@ import argparse
 import time
 import os
 import json
+import sys
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 # Set up command line args
 parser = argparse.ArgumentParser(description="Process some files.")
@@ -45,7 +51,7 @@ if args.multifolder:
 else:
     results = {args.input: checker.run_single(args.input, args.output)}
 
-with open(os.path.join(args.output, "raw.json"), "w") as f:
+with open(os.path.join(args.output, "raw.json"), "w", encoding='utf-8') as f:
     f.write(json.dumps(results, indent=2))
 dict_to_csv(transpose_dict(results), os.path.join(args.output, "raw_scores.csv"))
 

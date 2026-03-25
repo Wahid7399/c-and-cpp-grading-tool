@@ -240,4 +240,6 @@ hr.div {{ border: 0; border-top: 1px solid var(--border); margin: 20px 0; }}
   """
 
   html_doc = head + tail
+  if not errors:
+      errors = "No results to report."
   return html_doc, errors

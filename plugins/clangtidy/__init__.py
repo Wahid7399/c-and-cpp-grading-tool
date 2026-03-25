@@ -221,7 +221,7 @@ class ClangTidyPlugin(BasePlugin):
         )
 
         # Always write a log
-        with open(os.path.join(pwd, "data.log"), "w") as f:
+        with open(os.path.join(pwd, "data.log"), "w", encoding='utf-8') as f:
             f.write(combined)
 
         # Parse whatever we got (even if some files failed)
@@ -235,7 +235,7 @@ class ClangTidyPlugin(BasePlugin):
             "processed_files": processed_files,
             "skipped_files": skipped_files,
         }
-        with open(os.path.join(pwd, "results.json"), "w") as metrics_file:
+        with open(os.path.join(pwd, "results.json"), "w", encoding='utf-8') as metrics_file:
             json.dump(results, metrics_file, indent=4)
 
         # IMPORTANT: never raise; treat as success even if some files were skipped
@@ -251,7 +251,7 @@ class ClangTidyPlugin(BasePlugin):
         html, summary = generate_html_report(results, log)
 
         pwd = os.path.join(output_path, ".clangtidy")
-        with open(os.path.join(pwd, "report.html"), "w") as metrics_file:
+        with open(os.path.join(pwd, "report.html"), "w", encoding='utf-8') as metrics_file:
             metrics_file.write(html)
         return summary
 
