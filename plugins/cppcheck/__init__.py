@@ -169,9 +169,14 @@ class CppcheckPlugin(BasePlugin):
             metrics_file.write(html)
         return {"summary": "No Summary Available"}
 
+    def to_absolute(self, key, value, normalizer=None) -> float:
+        if not normalizer or normalizer == 0:
+            raise ValueError("Normalizer must be a non-zero value.")
+        return 100 - (value / normalizer) * 100.0
+
     def get_weights(self) -> dict:
         return {
-            "cppcheck_error_violations": {"direction": -1, "weight": 1.0, "normalized": False},
-            "cppcheck_performance_violations": {"direction": -1, "weight": 1.0, "normalized": False},
-            "cppcheck_style_violations": {"direction": -1, "weight": 1.0, "normalized": False},
+            "cppcheck_error_violations": {"direction": -1, "weight": 1.0},
+            "cppcheck_performance_violations": {"direction": -1, "weight": 1.0},
+            "cppcheck_style_violations": {"direction": -1, "weight": 1.0},
         }

@@ -1,26 +1,22 @@
+"""
+Unsafe, can run arbitrary code!
+"""
 from pathlib import Path
 from typing import Tuple
 from config import settings
 from plugins import TestPlugin
-from tools.utils import create_single_entry_point, remove_single_entry_point
-from tools import docker
+from tools.utils import find_entry_point
 from .reporting import generate_html_report
-from .util import run_individual_tests
-from subprocess import TimeoutExpired
 import os
 import subprocess
 import json
 import re
 import shutil
-import sys
-import shlex
-import requests
 
 class DoctestPlugin(TestPlugin):
     """
     Doctest Plugin for Code Quality Scorer
     """
-    DOCKER_IMAGE = "lumsdocker/cs200env:x86_64"
     TEST_SETUP_TEMPLATE = ""
     DOCTEST_HEADER_PATH = str(Path(__file__).parent.resolve() / "doctest.h")
 
@@ -34,43 +30,29 @@ class DoctestPlugin(TestPlugin):
         )
         self.test_file_imports = ""
         self.test_file_content = ""
-        self.has_tests = False
 
     def initialize(self):
         if settings.plugins.doctest is None or settings.plugins.doctest.enabled is not True:
             return
 
         template_path = os.path.join(Path(__file__).parent.resolve(), "tests_setup_template.h")
-        if not os.path.exists(DoctestPlugin.DOCTEST_HEADER_PATH):
-            url = "https://github.com/doctest/doctest/releases/download/v2.4.12/doctest.h"
-            print(f"⌛ Doctest not found, downloading v2.4.12 it from {url}")
-            response = requests.get(url)
-            if response.status_code == 200:
-                with open(DoctestPlugin.DOCTEST_HEADER_PATH, 'wb') as f:
-                    f.write(response.content)
-            else:
-                print(f"❌ Doctest - Failed to download doctest.h from {url}")
-                sys.exit(1)
-
         if os.path.exists(template_path):
             with open(template_path, 'r') as f:
                 DoctestPlugin.TEST_SETUP_TEMPLATE = f.read()
         else:
             print(f"❌ Doctest - test_setup_template.h not found")
-            sys.exit(1)
+            return
 
-        # Check if docker image is present
+        # Check if g++ is installed
         try:
-            docker.ensure_docker()
-            if not docker.image_exists(DoctestPlugin.DOCKER_IMAGE):
-                print(f"❌ Docker image '{DoctestPlugin.DOCKER_IMAGE}' not found. Pulling `{DoctestPlugin.DOCKER_IMAGE}`")
-                docker.pull_image(DoctestPlugin.DOCKER_IMAGE)
-            if not docker.image_exists(DoctestPlugin.DOCKER_IMAGE):
-                raise Exception("Docker image not found after pull, please check...")
-        except Exception as e:
-            print(f"❌ {e}")
-            sys.exit(1)
-        print("✅ Doctest is installed")
+            subprocess.run(
+                [settings.plugins.doctest.command, "--version"],
+                check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+            print("✅ Doctest - g++ works")
+            return
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            print("❌ Doctest needs g++.")
 
     def setup_tests(self, test_file: str) -> bool:
         """
@@ -120,64 +102,130 @@ class DoctestPlugin(TestPlugin):
         if not self.test_file_content:
             print(f"❌ Doctest - Test file {test_file} is empty.")
             return False
-        self.has_tests = True
         return True
 
     def _execute_tests(self, pwd: str, input_path: str) -> Tuple[bool, str]:
         # Go through the input files, find one with a main func
-        # main_file_path = find_entry_point(input_path)
-        existing_main = None
-        if os.path.exists(os.path.join(input_path, "main.cpp")) and os.path.isfile(os.path.join(input_path, "main.cpp")):
-            with open(os.path.join(input_path, "main.cpp"), 'r') as f:
-                existing_main = f.read()
-
-        main_file_path = create_single_entry_point(input_path, entry_point="main.cpp")
+        main_file_path = find_entry_point(input_path)
         if main_file_path is None:
             return False, "No main function found"
 
         # Prepare a main for doctest
-        template_repl = os.path.relpath(main_file_path, input_path).replace("\\", "/")
         prepared_main = (
-            self.test_file_imports + "\n" +
-            DoctestPlugin.TEST_SETUP_TEMPLATE.replace("[DOCTEST_MAIN_FILE_PATH]", template_repl) + "\n" +
+            self.test_file_imports + 
+            "\n" +
+            DoctestPlugin.TEST_SETUP_TEMPLATE.replace(
+                "[DOCTEST_MAIN_FILE_PATH]", os.path.relpath(main_file_path, input_path).replace("\\", "/")
+            ) +
+            "\n" +
             self.test_file_content
         )
-
-        # copy files to output_path
         prepared_main_path = os.path.join(input_path, "doctest_main.cpp")
-        doctest_header_dst = os.path.join(input_path, "doctest.h")
         with open(prepared_main_path, 'w') as f:
             f.write(prepared_main)
+
+        # copy doctest.h to output_path
+        doctest_header_dst = os.path.join(input_path, "doctest.h")
         shutil.copy(DoctestPlugin.DOCTEST_HEADER_PATH, doctest_header_dst)
 
         # Compile the code with doctest
+        # cpp_files = glob(os.path.join(input_path, "**", "*.cpp"), recursive=True)
+        executable_path = os.path.join(pwd, "doctest_executable")
+        compile_command = [
+            settings.plugins.doctest.command,
+            *settings.plugins.doctest.extra_args,
+            "-o", executable_path,
+            prepared_main_path,
+        ]
+        # ] + [file for file in cpp_files if file not in [main_file_path, prepared_main_path]]
+
         try:
-            # run_id = uuid.uuid4().hex[:8]
-            extra = " ".join(shlex.quote(a) for a in (settings.plugins.doctest.extra_args or []))
-            compile_cmd = f"set -e; mkdir -p doctest; g++ {extra} doctest_main.cpp -o doctest/doctest_executable.out"
-            result = docker.run(DoctestPlugin.DOCKER_IMAGE, input_path, compile_cmd, 300)
+            result = subprocess.run(
+                compile_command,
+                check=False,
+                capture_output=True,
+                text=True
+            )
             combined = (result.stdout or "") + "\n" + (result.stderr or "")
             with open(os.path.join(pwd, "compile.log"), "w") as f:
                 f.write(combined)
             if result.returncode != 0:
                 return False, combined
-        except TimeoutExpired as e:
-            print(f"❌ Doctest - Compilation timed out.")
-            print(e)
-            return False, "Compilation timed out"
+        except subprocess.CalledProcessError as e:
+            return False, combined
         finally:
             if os.path.exists(prepared_main_path):
                 os.remove(prepared_main_path)
             if os.path.exists(doctest_header_dst):
                 os.remove(doctest_header_dst)
-            remove_single_entry_point(input_path, entry_point="main.cpp")
-            if existing_main is not None:
-                with open(os.path.join(input_path, "main.cpp"), 'w') as f:
-                    f.write(existing_main)
+        
+        # Run the executable
+        try:
+            result = subprocess.run(
+                [executable_path],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            combined = (result.stdout or "") + "\n" + (result.stderr or "")
+            with open(os.path.join(pwd, "data.log"), "w") as f:
+                f.write(combined)
+            return True, combined
+        except subprocess.CalledProcessError as e:
+            return False, combined
+        except subprocess.TimeoutExpired as e:
+            return True, "Test execution timed out."
+        
+    def _parse_output(self, log: str) -> None:
+        summary_pattern = re.compile(r"\[doctest\] test cases:\s+(\d+)\s+\|\s+(\d+) passed\s+\|\s+(\d+) failed")
+        summary_match = summary_pattern.search(log)
 
-        return run_individual_tests(
-            docker, DoctestPlugin.DOCKER_IMAGE, input_path, pwd, per_test_timeout=15
+        if summary_match:
+            total_cases = int(summary_match.group(1))
+            passed_cases = int(summary_match.group(2))
+            failed_cases = int(summary_match.group(3))
+        else:
+            total_cases = passed_cases = failed_cases = 0
+
+        # --- Extract failed test details ---
+        fail_pattern = re.compile(
+            r"TEST CASE:\s+#(\d+)\s+(.*?)\. Score:\s+(\d+).*?"
+            r"ERROR: CHECK\(\s*(.*?)\s*\) is NOT correct!.*?"
+            r"values:\s+CHECK\(\s*(.*?)\s*\)",
+            re.S
         )
+
+        failures = []
+        for match in fail_pattern.finditer(log):
+            failures.append({
+                "number": int(match.group(1)),
+                "name": match.group(2).strip(),
+                "score": int(match.group(3)),
+                "failed_check": match.group(4).strip(),
+                "failed_value": match.group(5).strip()
+            })
+
+        total_score = sum(self.scoring.values())
+        obtained_score = total_score - sum(f['score'] for f in failures)
+        summary = {
+            "total_cases": total_cases,
+            "passed": passed_cases,
+            "failed": failed_cases,
+            "total_score": total_score,
+            "obtained_score": obtained_score,
+            "failures": failures,
+        }
+
+        scores = {}
+        for i in range(1, total_cases + 1):
+            if not any(f['number'] == i for f in failures):
+                scores[f"test_case_{i}"] = self.scoring.get(i, 0)
+            else:
+                scores[f"test_case_{i}"] = 0
+        
+        return summary, scores
+
 
     def run(self, input_path, output_path) -> Tuple[dict, dict, str]:
         """
@@ -196,16 +244,13 @@ class DoctestPlugin(TestPlugin):
         if settings.plugins.doctest is None or settings.plugins.doctest.enabled is not True:
             return {}, {}, ""
 
-        if not self.has_tests or not self.scoring:
-            return {}, {}, "No tests configured."
-
         pwd = os.path.join(output_path, f".{self.slug}")
         os.makedirs(pwd, exist_ok=True)
 
         success, data = self._execute_tests(pwd, input_path)
         summary, scores = {}, {}
         if success:
-            summary, scores = data.get("summary", {}), data.get("scores", {})
+            summary, scores = self._parse_output(data)
 
         if not summary or not scores:
             summary = {
@@ -232,26 +277,12 @@ class DoctestPlugin(TestPlugin):
         return scores, summary, data
 
     def generate_report(self, input_path: str, output_path: str, results: dict, log: str) -> None:
-        if not self.has_tests:
-            return ""
-
         if not results:
             raise ValueError("No results, should not be a thing!")
 
-        html, summary = generate_html_report(results)
+        html = generate_html_report(results)
 
         pwd = os.path.join(output_path, f".{self.slug}")
         with open(os.path.join(pwd, "report.html"), "w") as metrics_file:
             metrics_file.write(html)
-        return summary
-
-    def to_absolute(self, key, value, normalizer=None) -> float:
-        return value
-
-    def get_weights(self) -> dict:
-        if not self.has_tests or not self.scoring:
-            return {}
-        weights = {}
-        for key, value in self.scoring.items():
-            weights[f"test_case_{key}"] = {"direction": 1, "weight": 1}
-        return weights
+        return True

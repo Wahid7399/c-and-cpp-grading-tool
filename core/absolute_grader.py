@@ -27,19 +27,34 @@ def run(results: dict, weights: dict, output: str) -> None:
     for metric, cfg in weights.items():
         if metric not in df.columns:
             continue
-        if cfg["weight"] == 0:
+
+        # 0 weight means skip
+        if cfg["weight"] == 0 or metric == "halstead_difficulty": # skip halstead_difficulty
             continue
         
-        if cfg.get("normalized") is False:
-            df[metric] = (df[metric] / df["lines_of_code"]) * 100
+        # Convert to absolute
+        plugin_instance = cfg.get("plugin", None)
+        df[metric] = df.apply(
+            lambda row: plugin_instance.to_absolute(metric, row[metric], row.get("lines_of_code", None)), axis=1
+        )
 
-        if cfg["direction"] == -1:
-            df[metric] = df[metric].apply(lambda x: -x if x != 0 else 0)
+        df[metric] = df[metric].fillna(100)
+        # if cfg["direction"] == -1:
+        #     df[metric] = df[metric].apply(lambda x: -x if x != 0 else 0)
 
         weighted = df[metric] * cfg["weight"]
         weighted = weighted.round(2)
         results[metric] = weighted
 
+    # Give total "Code Quality" score => sum of non-test case weights (exclude test_)
+    # Give "Out of" => sum of weights * 100
+    keys = [m for m in weights.keys() if not m.startswith("test_") and m != "halstead_difficulty"]
+    for key in results["key"]:
+        total = sum(results.loc[results["key"] == key, m].values[0] for m in keys if m in results.columns)
+        results.loc[results["key"] == key, "quality_total"] = round(total, 2)
+    total_out_of = sum(cfg["weight"] for m, cfg in weights.items() if not m.startswith("test_") and m != "halstead_difficulty") * 100
+    results["quality_out_of"] = total_out_of
+    results["quality_percentage"] = (results["quality_total"] / results["quality_out_of"] * 100).round(2)
     df_out = (
         results.set_index("key").T.reset_index().rename(columns={"index": "metric"}).sort_index(axis=1)
     )

@@ -482,9 +482,7 @@ def generate_html_report(results: dict, log: str):
     {render_file_sections()}
 
     <footer>
-      <p><strong>How to read code frames:</strong> The code line appears with its number on the left (from clang-tidy),
-      and the pointer line uses <code>^</code> to indicate the exact column, and <code>~</code> to underline the span.</p>
-      <p>Tips are suggestions, not strict rules—fix correctness and compile errors first, then readability.</p>
+      <p>Tips are suggestions, not strict rules. Fix correctness and compile errors first, then readability.</p>
     </footer>
   </div>
 </body>

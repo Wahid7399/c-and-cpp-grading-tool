@@ -255,12 +255,17 @@ class ClangTidyPlugin(BasePlugin):
             metrics_file.write(html)
         return summary
 
+    def to_absolute(self, key, value, normalizer=None) -> float:
+        if not normalizer or normalizer == 0:
+            raise ValueError("Normalizer must be a non-zero value.")
+        return 100 - (value / normalizer) * 100.0
+
     def get_weights(self) -> dict:
         return {
-            "identifier_naming_violations": {"direction": -1, "weight": 1.0, "normalized": False},
-            "cognitive_complexity_violations": {"direction": -1, "weight": 1.0, "normalized": False},
-            "readability_violations": {"direction": -1, "weight": 1.0, "normalized": False},
-            "correctness_violations": {"direction": -1, "weight": 1.0, "normalized": False},
-            "performance_violations": {"direction": -1, "weight": 1.0, "normalized": False},
-            "guidelines_violations": {"direction": -1, "weight": 1.0, "normalized": False},
+            "identifier_naming_violations": {"direction": -1, "weight": 1.0},
+            "cognitive_complexity_violations": {"direction": -1, "weight": 1.0},
+            "readability_violations": {"direction": -1, "weight": 1.0},
+            "correctness_violations": {"direction": -1, "weight": 1.0},
+            "performance_violations": {"direction": -1, "weight": 1.0},
+            "guidelines_violations": {"direction": -1, "weight": 1.0},
         }

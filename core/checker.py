@@ -89,7 +89,7 @@ def run_single(input: str, output: str) -> dict:
     shutil.rmtree(temp_dir, ignore_errors=True)
     return results
 
-def _multifolder_single_batch_run(input_dirs: List[os.PathLike], output: str) -> dict:
+def _multifolder_single_batch_run(input_dirs: List[os.PathLike], output: str, check_zips: bool) -> dict:
     """
     Run the quality scorer on multiple folders.
     Loop through the main directory, go into each subfolder,
@@ -106,7 +106,7 @@ def _multifolder_single_batch_run(input_dirs: List[os.PathLike], output: str) ->
             unzip_temp = os.path.join(dir_path, "unzipped")
             shutil.rmtree(unzip_temp, ignore_errors=True)
             # If a zip exists, unzip it and run the quality scorer
-            if any(file.endswith('.zip') for root, dirs, files in os.walk(dir_path) for file in files):
+            if check_zips and any(file.endswith('.zip') for root, dirs, files in os.walk(dir_path) for file in files):
                 zip_paths = []
                 for root, dirs, files in os.walk(dir_path):
                     for file in files:
@@ -141,33 +141,28 @@ def _multifolder_single_batch_run(input_dirs: List[os.PathLike], output: str) ->
             print(output_message)
     return results
 
-def multifolder_run(input: str, output: str, num_threads: int) -> dict:
+def multifolder_run(folders: List, output: str, num_threads: int, check_zips: bool = True) -> dict:
     """
     Run the quality scorer on multiple folders with optional multithreading.
     """
-    if not os.path.exists(input):
-        raise FileNotFoundError(f"Input path {input} does not exist")
-    
     if not os.path.exists(output):
         os.makedirs(output, exist_ok=True)
 
     output = os.path.abspath(output)
 
-    folders = []
-    for entry in os.scandir(input):
-        if entry.is_dir():
-            folders.append(entry)
-
     if num_threads == 1:
-        return _multifolder_single_batch_run(folders, output)
+        return _multifolder_single_batch_run(folders, output, check_zips), False
     else:
-        results = {}
+        results, partial = {}, False
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
-            futures = {executor.submit(_multifolder_single_batch_run, [folder], output): folder.path
-                    for folder in folders}
-            for future in as_completed(futures):
-                results.update(future.result())
-        return results
+            futs = {executor.submit(_multifolder_single_batch_run, [f], output, check_zips): f for f in folders}
+            for fut in as_completed(futs):
+                try:
+                    results.update(fut.result())
+                except Exception:
+                    partial = True
+                    print(f"⚠️ Error processing folder {futs[fut].path}:")
+        return results, partial
 
 def grade(results: dict, output: str, grading: str):
     """
@@ -178,7 +173,10 @@ def grade(results: dict, output: str, grading: str):
         if not hasattr(settings.plugins, plugin) or not settings.plugins[plugin].enabled:
             continue
         plugin_instance: BasePlugin = all_plugins[plugin]
-        weights.update(plugin_instance.get_weights())
+        plugin_weights = plugin_instance.get_weights()
+        for key in plugin_weights.keys():
+            plugin_weights[key]["plugin"] = plugin_instance
+        weights.update(plugin_weights)
     if grading == "relative":
         relative_grader.run(results, weights, output)
     else:

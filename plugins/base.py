@@ -42,6 +42,13 @@ class BasePlugin:
         """
         raise NotImplementedError("Need to implement.")
 
+    def to_absolute(self, key: str, value: float, normalizer: float) -> dict:
+        """
+        Convert the collected metrics to absolute values.
+        This method can be overridden by plugins to customize conversion.
+        """
+        raise NotImplementedError("Need to implement.")
+
     def get_weights(self) -> dict:
         """
         Return the weights for the metrics collected by this plugin.

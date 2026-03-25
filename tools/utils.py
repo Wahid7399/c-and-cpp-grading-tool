@@ -1,4 +1,5 @@
 import itertools
+from typing import List
 from zipfile import ZipFile
 from glob import glob
 import os
@@ -129,4 +130,14 @@ def transpose_dict(data: dict) -> dict:
 
 def get_latest_in_zip(zip_path):
     with ZipFile(zip_path, 'r') as zf:
-        return max(info.date_time for info in zf.infolist())
+        return max(info.date_time for info in zf.infolist()) if zf.infolist() else None
+
+def collect_input_folders(input: str) -> List[os.PathLike]:
+    if not os.path.exists(input):
+        raise FileNotFoundError(f"Input path {input} does not exist")
+
+    folders = []
+    for entry in os.scandir(input):
+        if entry.is_dir():
+            folders.append(entry)
+    return folders

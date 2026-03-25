@@ -13,6 +13,7 @@ import requests
 import zipfile
 import io
 import shutil
+import math
 
 class MetrixPlusPlusPlugin(BasePlugin):
     """
@@ -91,7 +92,7 @@ class MetrixPlusPlusPlugin(BasePlugin):
 
         metrics = {}
         if "std.code.complexity:cyclomatic" in raw:
-            metrics["cyclomatic"] = raw.get("std.code.complexity:cyclomatic", {}).get("stats", {}).get("Average", 0)
+            metrics["cyclomatic"] = raw.get("std.code.complexity:cyclomatic", {}).get("stats", {}).get("Total", 0)
         if "std.code.lines:code" in raw:
             metrics["lines_of_code"] = raw.get("std.code.lines:code", {}).get("stats", {}).get("Total", 0)
         if "std.code.lines:comments" in raw:
@@ -107,13 +108,26 @@ class MetrixPlusPlusPlugin(BasePlugin):
         if "std.code.halstead_base:N2" in raw:
             metrics["halstead_N2"] = raw.get("std.code.halstead_base:N2", {}).get("stats", {}).get("Total", 0)
         if "std.code.halstead_adv:H_Volume" in raw:
-            metrics["halstead_volume"] = raw.get("std.code.halstead_adv:H_Volume", {}).get("stats", {}).get("Average", 0)
+            metrics["halstead_volume"] = raw.get("std.code.halstead_adv:H_Volume", {}).get("stats", {}).get("Total", 0)
         if "std.code.halstead_adv:H_Difficulty" in raw:
-            metrics["halstead_difficulty"] = raw.get("std.code.halstead_adv:H_Difficulty", {}).get("stats", {}).get("Average", 0)
+            metrics["halstead_difficulty"] = raw.get("std.code.halstead_adv:H_Difficulty", {}).get("stats", {}).get("Total", 0)
         if "std.code.halstead_adv:H_Effort" in raw:
-            metrics["halstead_effort"] = raw.get("std.code.halstead_adv:H_Effort", {}).get("stats", {}).get("Average", 0)
-        if "std.code.mi:simple" in raw:
-            metrics["maintainability_index"] = raw.get("std.code.mi:simple", {}).get("stats", {}).get("Average", 0)
+            metrics["halstead_effort"] = raw.get("std.code.halstead_adv:H_Effort", {}).get("stats", {}).get("Total", 0)
+        # if "std.code.mi:simple" in raw:
+        #     metrics["maintainability_index"] = raw.get("std.code.mi:simple", {}).get("stats", {}).get("Total", 0)
+        # Maintainability Index = MAX(0,(171 - 5.2 * ln(Halstead Volume) - 0.23 * (Cyclomatic Complexity) - 16.2 * ln(Lines of Code))*100 / 171)
+        # Calculate manually
+        if "halstead_volume" in metrics and "cyclomatic" in metrics and "lines_of_code" in metrics:
+            V = metrics["halstead_volume"]
+            C = metrics["cyclomatic"]
+            L = metrics["lines_of_code"]
+            if V > 0 and L > 0:
+                MI = max(0, (171 - 5.2 * math.log(V) - 0.23 * C - 16.2 * math.log(L)) * 100 / 171)
+                metrics["maintainability_index"] = MI
+            else:
+                metrics["maintainability_index"] = 0
+        else:
+            metrics["maintainability_index"] = 0
 
         results = {
             "metrics": metrics,
@@ -239,18 +253,44 @@ class MetrixPlusPlusPlugin(BasePlugin):
             metrics_file.write(html)
         return summary
 
+    def to_absolute(self, key, value, normalizer=None) -> float:
+        if not normalizer or normalizer == 0:
+            raise ValueError("Normalizer must be a non-zero value.")
+        if key == "cyclomatic":
+            return 100 - ((value / normalizer) * 100.0)
+        elif key == "halstead_difficulty":
+            return None
+            # Guidance: D ≲ 10 easy, ~20 moderate, ≥30 hard.
+            # 1/(1+exp(-(D-m)/s)) scaled to 0-100 where s is 6 and m is 20
+            # m, s = 20, 6
+            # return 100 - ((1 / (1 + math.exp(-(value - m) / s))) * 100.0)
+        elif key == "halstead_effort":
+            # Halstead effort is time in seconds E / 18 (seconds per mental discriminations)
+            # Assuming 8h work day, 8*60*60*18 = 518400            
+            # Poisson
+            return 100 - ((1 - math.exp(-value / 518400.0)) * 100.0)
+        elif key == "halstead_volume":
+            # Halstead volume is size of implementation
+            # Halstead’s defect estimate: bugs ≈ V / 3000.
+            # Map to risk via a Poisson “at least one defect” probability
+            return 100 - ((1 - math.exp(-value / 3000.0)) * 100.0)
+        elif key == "lines_of_comments":
+            return (value / normalizer) * 100.0
+        else:
+            return value
+
     def get_weights(self) -> dict:
         return {
             "cyclomatic": {"direction": -1, "weight": 1.0},
             "halstead_difficulty": {"direction": -1, "weight": 1.0},
-            "halstead_effort": {"direction": -1, "weight": 0.01},
-            "halstead_volume": {"direction": -1, "weight": 0.1},
-            "maintainability_index": {"direction": +1, "weight": 10.0},
-            "comment_ratio": {"direction": +1, "weight": 10.0},
+            "halstead_effort": {"direction": -1, "weight": 1.0},
+            "halstead_volume": {"direction": -1, "weight": 1.0},
+            "maintainability_index": {"direction": +1, "weight": 1.0},
+            "comment_ratio": {"direction": +1, "weight": 0},
             "halstead_n1": {"direction": -1, "weight": 0},
             "halstead_n2": {"direction": -1, "weight": 0},
             "halstead_N1": {"direction": -1, "weight": 0},
             "halstead_N2": {"direction": -1, "weight": 0},
-            "lines_of_comments": {"direction": +1, "weight": 0},
+            "lines_of_comments": {"direction": +1, "weight": 1.0},
             "lines_of_code": {"direction": +1, "weight": 0},
         }

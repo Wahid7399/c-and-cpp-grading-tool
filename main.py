@@ -1,10 +1,12 @@
-import time
 from config import load_file, settings
 from core import checker
 from tools.report import dict_to_csv
-from tools.utils import transpose_dict
+from tools.utils import transpose_dict, collect_input_folders
+from tools.partial import child_key, read_existing
 import argparse
+import time
 import os
+import json
 
 # Set up command line args
 parser = argparse.ArgumentParser(description="Process some files.")
@@ -13,8 +15,9 @@ parser.add_argument("--output", type=str, required=True, help="Output dir path")
 parser.add_argument("--tests", type=str, required=False, help="Tests file path")
 parser.add_argument("--config", type=str, help="Config file path")
 parser.add_argument("--threads", type=int, default=1, help="Number of threads to use for processing")
+parser.add_argument("--check-zips", type=str, default="true", help="Check and extract zip files in multifolder mode")
 parser.add_argument("--multifolder", action="store_true", help="Multifolder analysis for multiple projects at once, extracts")
-parser.add_argument("--grading", type=str, default="absolute", choices=["absolute", "relative"], help="Grading type for the results")
+parser.add_argument("--grading", type=str, default="relative", choices=["absolute", "relative"], help="Grading type for the results")
 
 args = parser.parse_args()
 
@@ -29,10 +32,21 @@ checker.init()
 checker.setup_tests(args.tests)
 
 if args.multifolder:
-    results = checker.multifolder_run(args.input, args.output, args.threads)
+    csv_path = os.path.join(args.output, "raw_scores.csv")
+    existing = read_existing(csv_path)
+    done = set(existing.keys())
+    folders = [p for p in collect_input_folders(args.input) if child_key(p) not in done]
+
+    results, partial = checker.multifolder_run(folders, args.output, args.threads, args.check_zips != "false")
+    if partial:
+        print("⚠️ Some folders could not be processed due to errors.")
+    if existing:
+        results.update(existing)
 else:
     results = {args.input: checker.run_single(args.input, args.output)}
 
+with open(os.path.join(args.output, "raw.json"), "w") as f:
+    f.write(json.dumps(results, indent=2))
 dict_to_csv(transpose_dict(results), os.path.join(args.output, "raw_scores.csv"))
 
 if args.grading == "absolute" or (args.multifolder and args.grading == "relative"):

@@ -122,8 +122,13 @@ class ValgrindPlugin(BasePlugin):
             metrics_file.write(html)
         return summary
 
+    def to_absolute(self, key, value, normalizer=None) -> float:
+        if not normalizer or normalizer == 0:
+            raise ValueError("Normalizer must be a non-zero value.")
+        return 100 - (value / normalizer) * 100.0
+
     def get_weights(self) -> dict:
         return {
-            "valgrind_errors": {"direction": -1, "weight": 1.0, "normalized": False},
-            "valgrind_leaks": {"direction": -1, "weight": 1.0, "normalized": False},
+            "valgrind_errors": {"direction": -1, "weight": 1.0},
+            "valgrind_leaks": {"direction": -1, "weight": 1.0},
         }
