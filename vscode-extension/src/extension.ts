@@ -31,6 +31,25 @@ function maybeOpenDockerInstallPage(text: string, state: { opened: boolean }, ou
   void vscode.window.showWarningMessage('Docker is not installed. Opened Docker Desktop download page in your browser.');
 }
 
+function quoteForShell(value: string): string {
+  if (process.platform === 'win32') {
+    if (value.length === 0) {
+      return '""';
+    }
+    return `"${value.replace(/(["^&|<>])/g, '^$1')}"`;
+  }
+
+  if (value.length === 0) {
+    return "''";
+  }
+
+  return `'${value.replace(/'/g, `'"'"'`)}'`;
+}
+
+function buildShellCommand(command: string, args: string[]): string {
+  return [quoteForShell(command), ...args.map(quoteForShell)].join(' ');
+}
+
 function runProcess(
   command: string,
   args: string[],
@@ -40,7 +59,7 @@ function runProcess(
 ): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     output.appendLine(`${label}: ${command} ${args.map((a) => JSON.stringify(a)).join(' ')}`);
-    const child = spawn(command, args, { cwd, shell: true, env: process.env });
+    const child = spawn(buildShellCommand(command, args), [], { cwd, shell: true, env: process.env });
     child.stdout.on('data', (chunk: Buffer) => output.append(chunk.toString()));
     child.stderr.on('data', (chunk: Buffer) => output.append(chunk.toString()));
     child.on('error', (err) => reject(err));
