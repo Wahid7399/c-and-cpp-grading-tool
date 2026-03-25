@@ -1,0 +1,71 @@
+{
+    "python_slug": {
+        "label": "Python executable",
+        "description": "Command used to invoke Python (for example: python3)."
+    },
+    "plugins": {
+        "section": "plugins",
+        "description": "Plugin-level configuration values."
+    },
+    "plugins.doctest": {
+        "section": "plugin: doctest",
+        "description": "Configuration for doctest-based compilation and tests."
+    },
+    "plugins.doctest.enabled": {
+        "label": "Enable doctest"
+    },
+    "plugins.doctest.extra_args": {
+        "label": "Doctest extra args",
+        "description": "Compiler arguments passed when building doctest runs."
+    },
+    "plugins.doctest.tests_file": {
+        "label": "Default tests file",
+        "description": "Optional tests file path. Leave null if tests are always passed via CLI."
+    },
+    "plugins.clangtidy": {
+        "section": "plugin: clangtidy",
+        "description": "Configuration for static analysis with clang-tidy."
+    },
+    "plugins.clangtidy.enabled": {
+        "label": "Enable clangtidy"
+    },
+    "plugins.clangtidy.command": {
+        "label": "clangtidy command"
+    },
+    "plugins.clangtidy.config": {
+        "label": "Path to clang-tidy config",
+        "description": "Optional path to a custom clang-tidy config file."
+    },
+    "plugins.clangtidy.extra_args": {
+        "label": "clangtidy extra args",
+        "description": "Compiler/driver args passed to clang-tidy invocations."
+    },
+    "plugins.metrixplusplus": {
+        "section": "plugin: metrixplusplus",
+        "description": "Configuration for metrix++ metrics collection."
+    },
+    "plugins.metrixplusplus.enabled": {
+        "label": "Enable metrixplusplus"
+    },
+    "plugins.metrixplusplus.metrics": {
+        "label": "metrixplusplus metrics",
+        "description": "List of metrix++ metric IDs to collect."
+    },
+    "plugins.valgrind": {
+        "section": "plugin: valgrind",
+        "description": "Configuration for valgrind memory checks."
+    },
+    "plugins.valgrind.enabled": {
+        "label": "Enable valgrind"
+    },
+    "plugins.cppcheck": {
+        "section": "plugin: cppcheck",
+        "description": "Configuration for cppcheck static analysis."
+    },
+    "plugins.cppcheck.enabled": {
+        "label": "Enable cppcheck"
+    },
+    "plugins.cppcheck.command": {
+        "label": "cppcheck command"
+    }
+}

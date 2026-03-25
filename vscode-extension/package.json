@@ -12,14 +12,19 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "onCommand:qualityMetrics.run"
+    "onCommand:qualityMetrics.run",
+    "onCommand:qualityMetrics.createConfig"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "qualityMetrics.run",
-        "title": "Run Quality Metrics Analysis"
+        "title": "Quality Metrics: Run Analysis"
+      },
+      {
+        "command": "qualityMetrics.createConfig",
+        "title": "Quality Metrics: Create Config File"
       }
     ],
     "menus": {
@@ -51,7 +56,7 @@
         },
         "qualityMetrics.inputPath": {
           "type": "string",
-          "default": "examples/0",
+          "default": "",
           "description": "Input path passed to --input, relative to workspace root or absolute."
         },
         "qualityMetrics.outputPath": {
@@ -71,7 +76,7 @@
         },
         "qualityMetrics.threads": {
           "type": "number",
-          "default": 1,
+          "default": 4,
           "minimum": 1,
           "description": "Number of threads for --threads."
         },
@@ -82,7 +87,7 @@
         },
         "qualityMetrics.checkZips": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "Boolean value converted to --check-zips true/false."
         },
         "qualityMetrics.grading": {
@@ -91,14 +96,14 @@
             "relative",
             "absolute"
           ],
-          "default": "relative",
+          "default": "absolute",
           "description": "Grading mode for --grading."
         }
       }
     }
   },
   "scripts": {
-    "bundle:sync": "rm -rf bundled/quality-metrics && mkdir -p bundled/quality-metrics && rsync -a --delete --exclude '__pycache__' --exclude '.git' ../main.py ../config ../core ../plugins ../tools ../requirements.txt bundled/quality-metrics/",
+    "bundle:sync": "rm -rf bundled/quality-metrics && mkdir -p bundled/quality-metrics && rsync -a --delete --exclude '__pycache__' --exclude '.git' ../main.py ../config ../core ../plugins ../tools ../scripts ../requirements.txt bundled/quality-metrics/",
     "vscode:prepublish": "npm run bundle:sync && npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./"

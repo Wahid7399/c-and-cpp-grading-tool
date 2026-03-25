@@ -7,11 +7,14 @@ By default, it uses a bundled copy of the `quality-metrics` tool included inside
 ## Command
 
 - `Run Quality Metrics Analysis`
+- `Create Quality Metrics Config File`
 
 You can run it from:
 - Command Palette
 - Explorer right-click on a folder: `Run Quality Metrics Analysis`
 - Explorer right-click on a file: `Run Quality Metrics Analysis` (uses that file's parent folder as input)
+
+For `Create Quality Metrics Config File`, the extension asks you to pick a destination folder, then writes `quality_metrics.config.json` there.
 
 When analysis finishes successfully, the extension automatically opens the generated `report.html` in your default browser.
 If a run fails, an error notification appears in the bottom-right and full logs are in the `Quality Metrics` Output channel.

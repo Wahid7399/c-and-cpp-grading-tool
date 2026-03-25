@@ -59,8 +59,7 @@ def create_single_entry_point(_dir, entry_point="main.cpp"):
             line = ' '.join(line.split())
             if line.startswith('#include'):
                 includes.add(line)
-        # replace int isTrivialOutput with int isTrivialOutput_
-        lines = [line.replace('int isTrivialOutput', 'int isTrivialOutput_') for line in lines]
+
         # Remove main function
         main_start = -1
         main_end = -1
@@ -81,6 +80,7 @@ def create_single_entry_point(_dir, entry_point="main.cpp"):
         if main_start != -1 and main_end != -1:
             del lines[main_start:main_end + 1]
         code[file_path] = ''.join(lines)    
+
     # Create a new main.c or main.cpp file with all main functions
     with open(os.path.join(_dir, entry_point), 'w') as f:
         for include in includes:

@@ -104,7 +104,7 @@ class CppcheckPlugin(BasePlugin):
         os.makedirs(pwd, exist_ok=True)
 
         cpp_files = list(itertools.chain.from_iterable(
-            glob.glob(os.path.join(input_path, "**", ext), recursive=True)
+            glob(os.path.join(input_path, "**", ext), recursive=True)
             for ext in ("*.c", "*.cpp")
         ))
         if not cpp_files:

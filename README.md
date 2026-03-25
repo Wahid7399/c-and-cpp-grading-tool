@@ -113,6 +113,14 @@ Edit the file in `config/default.json` or provide a file via command line argume
     }
 ```
 
+### Custom config
+
+A custom config file can be generated & passed to the checker:
+
+```bash
+python scripts/create_config.py --output .quality_metrics.config.json
+```
+
 ## Project Structure
 
 ```
@@ -284,7 +292,7 @@ cat results/.myawesome/results.json
 
 ---
 
-### VS Code Extension Compile
+### VS Code Extension
 ```
 cd vscode-extension && npm i
 npx @vscode/vsce package --allow-missing-repository

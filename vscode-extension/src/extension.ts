@@ -211,6 +211,19 @@ function resolveOutputPath(
   return path.join(baseInputDir, 'Quality Report');
 }
 
+function resolveRunConfigPath(
+  workspacePath: string,
+  config: vscode.WorkspaceConfiguration
+): string | undefined {
+  const configuredConfigPath = config.get<string>('configPath', '').trim();
+  if (configuredConfigPath) {
+    return resolveMaybeRelative(workspacePath, configuredConfigPath);
+  }
+
+  const localConfigPath = path.join(workspacePath, '.quality_metrics.config.json');
+  return fs.existsSync(localConfigPath) ? localConfigPath : undefined;
+}
+
 function buildArgs(
   workspacePath: string,
   scriptPath: string,
@@ -219,11 +232,11 @@ function buildArgs(
   config: vscode.WorkspaceConfiguration,
 ): string[] {
   const testsPath = config.get<string>('testsPath', '').trim();
-  const configPath = config.get<string>('configPath', '').trim();
-  const threads = config.get<number>('threads', 1);
+  const resolvedRunConfigPath = resolveRunConfigPath(workspacePath, config);
+  const threads = config.get<number>('threads', 4);
   const multifolder = config.get<boolean>('multifolder', false);
-  const checkZips = config.get<boolean>('checkZips', true);
-  const grading = config.get<string>('grading', 'relative');
+  const checkZips = config.get<boolean>('checkZips', false);
+  const grading = config.get<string>('grading', 'absolute');
 
   const args = [
     scriptPath,
@@ -243,8 +256,8 @@ function buildArgs(
     args.push('--tests', resolveMaybeRelative(workspacePath, testsPath));
   }
 
-  if (configPath) {
-    args.push('--config', resolveMaybeRelative(workspacePath, configPath));
+  if (resolvedRunConfigPath) {
+    args.push('--config', resolvedRunConfigPath);
   }
 
   if (multifolder) {
@@ -374,7 +387,79 @@ export function activate(context: vscode.ExtensionContext): void {
     );
   });
 
-  context.subscriptions.push(runCommand, output);
+  const createConfigCommand = vscode.commands.registerCommand('qualityMetrics.createConfig', async () => {
+    const createConfigScript = path.join(bundledRoot(context), 'scripts', 'create_config.py');
+    if (!fs.existsSync(createConfigScript)) {
+      vscode.window.showErrorMessage(`create_config.py script not found: ${createConfigScript}`);
+      return;
+    }
+
+    const destinationPick = await vscode.window.showOpenDialog({
+      canSelectFiles: false,
+      canSelectFolders: true,
+      canSelectMany: false,
+      openLabel: 'Select Destination Folder',
+      title: 'Select folder for quality_metrics.config.json'
+    });
+
+    if (!destinationPick || destinationPick.length === 0) {
+      return;
+    }
+
+    const destinationFolder = destinationPick[0].fsPath;
+    const targetPath = path.join(destinationFolder, '.quality_metrics.config.json');
+
+    if (fs.existsSync(targetPath)) {
+      const overwrite = await vscode.window.showWarningMessage(
+        `File already exists: ${targetPath}`,
+        { modal: true },
+        'Overwrite'
+      );
+      if (overwrite !== 'Overwrite') {
+        return;
+      }
+    }
+
+    let pythonPath: string;
+    try {
+      pythonPath = await ensureVirtualEnv(context, output, false);
+    } catch (err) {
+      const message = (err as Error).message;
+      output.appendLine(`\nEnvironment setup failed: ${message}`);
+      vscode.window.showErrorMessage(`Quality Metrics environment setup failed: ${message}`);
+      return;
+    }
+
+    const execution = new vscode.ProcessExecution(
+        pythonPath,
+        [createConfigScript, '--output', targetPath],
+        {
+            cwd: path.dirname(createConfigScript),
+            env: {
+                ...process.env,
+                PATH: [path.dirname(pythonPath), process.env.PATH ?? ''].join(path.delimiter),
+            },
+        }
+    );
+
+    const task = new vscode.Task(
+        { type: 'qualityMetricsWizard' },
+        vscode.TaskScope.Workspace,
+        `Quality Metrics Config Wizard (${new Date().toLocaleTimeString()})`,
+        'your-extension-id',
+        execution
+    );
+
+    task.presentationOptions = {
+        reveal: vscode.TaskRevealKind.Always,
+        panel: vscode.TaskPanelKind.Dedicated,
+        clear: true,
+    };
+
+    await vscode.tasks.executeTask(task);
+  });
+
+  context.subscriptions.push(runCommand, createConfigCommand, output);
 }
 
 export function deactivate(): void {}

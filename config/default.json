@@ -5,7 +5,8 @@
             "enabled": true,
             "extra_args": [
                 "-std=c++11"
-            ]
+            ],
+            "tests_file": null
         },
         "clangtidy": {
             "enabled": true,
