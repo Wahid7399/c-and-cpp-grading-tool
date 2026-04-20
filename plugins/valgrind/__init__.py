@@ -64,33 +64,55 @@ class ValgrindPlugin(BasePlugin):
         pwd = os.path.join(output_path, f".{self.slug}")
         os.makedirs(pwd, exist_ok=True)
 
-        main_file_path = find_entry_point(input_path)
-        if main_file_path is None:
-            return {}, {}, "No main function found"
-        main_file_path = os.path.relpath(main_file_path, input_path)
+        # Determine source file to compile
+        explicit_main = getattr(settings.plugins.valgrind, "main_file", None)
+        if explicit_main:
+            # Copy provided driver into student dir so relative includes resolve
+            driver_dst = os.path.join(input_path, "_valgrind_main_driver.c")
+            shutil.copy(explicit_main, driver_dst)
+            compile_src = "_valgrind_main_driver.c"
+        else:
+            found = find_entry_point(input_path)
+            if found is None:
+                return {}, {}, "No main function found and no main_file configured."
+            compile_src = os.path.relpath(found, input_path)
+            driver_dst = None
 
-        compile_cmd = f"mkdir -p valgrind && g++ -std=c++11 {main_file_path} -o valgrind/a.out"
+        extra = " ".join(settings.plugins.valgrind.extra_args or [])
+        include_flags = " ".join(
+            f"-I{d}" for d in (settings.plugins.valgrind.include_dirs or [])
+        )
+        compiler = getattr(settings.plugins.valgrind, "compiler", None) or "gcc"
+        compile_cmd = f"mkdir -p valgrind && {compiler} {extra} {include_flags} {compile_src} -o valgrind/a.out"
         try:
             comp = docker.run(ValgrindPlugin.DOCKER_IMAGE, input_path, compile_cmd, timeout=60)
         except TimeoutExpired as e:
-            return {}, {}, f"Valgrind execution timed out: {e}"
+            if driver_dst:
+                os.remove(driver_dst)
+            return {}, {}, f"Valgrind compilation timed out: {e}"
+        finally:
+            if driver_dst and os.path.exists(driver_dst):
+                os.remove(driver_dst)
         if comp.returncode != 0:
-            return {}, {}, "Compilation failed."
+            compile_out = (comp.stdout or "") + "\n" + (comp.stderr or "")
+            with open(os.path.join(pwd, "data.log"), "w", encoding="utf-8") as f:
+                f.write("COMPILATION FAILED:\n" + compile_out)
+            return {}, {}, f"Compilation failed:\n{compile_out}"
 
         # prog_args = " ".join(shlex.quote(a) for a in (settings.plugins.valgrind.args or []))
-        run_cmd = f"valgrind --leak-check=full --error-exitcode=1 valgrind/a.out"
+        run_cmd = f"valgrind --leak-check=full --error-exitcode=1 ./valgrind/a.out"
         try:
             res = docker.run(ValgrindPlugin.DOCKER_IMAGE, input_path, run_cmd, timeout=60)
         except TimeoutExpired as e:
             return {}, {}, f"Valgrind execution timed out: {e}"
 
         with open(os.path.join(pwd, "data.log"), "w", encoding='utf-8') as f:
-            f.write(res.stdout)
-            f.write(res.stderr)
+            f.write(res.stdout or "")
+            f.write(res.stderr or "")
 
         shutil.rmtree(Path(input_path) / "valgrind", ignore_errors=True)
 
-        results = parse_valgrind_stdout(res.stderr)
+        results = parse_valgrind_stdout(res.stderr or "")
 
         metrics = {
             "valgrind_errors": results.get("error_summary", {}).get("errors", 0),

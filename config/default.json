@@ -6,7 +6,9 @@
             "extra_args": [
                 "-std=c++11"
             ],
-            "tests_file": null
+            "include_dirs": [],
+            "tests_file": null,
+            "tests_files": null
         },
         "clangtidy": {
             "enabled": true,
@@ -30,7 +32,11 @@
             ]
         },
         "valgrind": {
-            "enabled": true
+            "enabled": true,
+            "main_file": null,
+            "compiler": "gcc",
+            "extra_args": ["-std=c11"],
+            "include_dirs": []
         },
         "cppcheck": {
             "enabled": false,

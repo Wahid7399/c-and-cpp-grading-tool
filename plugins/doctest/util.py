@@ -1,7 +1,7 @@
-import os, re, shutil, subprocess
+import os, re, shutil, subprocess, shlex
 import json
 
-def run_individual_tests(docker, image, input_path, pwd, per_test_timeout=15):
+def run_individual_tests(docker, image, input_path, per_test_timeout=15):
     workdir = f"cd doctest; "
     exe = "./doctest_executable.out"
 
@@ -17,14 +17,12 @@ def run_individual_tests(docker, image, input_path, pwd, per_test_timeout=15):
         list_output = ((result.stdout or "") + "\n" + (result.stderr or "")).strip()
     except subprocess.TimeoutExpired:
         combined = "Listing test cases timed out"
-        _write_log(pwd, logs, combined)
         _cleanup(input_path)
-        return False, combined
+        return False, combined, combined
     except Exception as e:
-        combined = f"Failed to list test cases: {e}"
-        _write_log(pwd, logs, combined)
+        combined = f"Failed to list test cases: {type(e).__name__}: {e}"
         _cleanup(input_path)
-        return False, combined
+        return False, combined, combined
 
     # Extract case names (doctest prints one name per line)
     case_names = [line.strip() for line in list_output.splitlines() if line.strip()]
@@ -36,9 +34,8 @@ def run_individual_tests(docker, image, input_path, pwd, per_test_timeout=15):
 
     if not case_names:
         combined = "No test cases found.\n" + list_output
-        _write_log(pwd, logs, combined)
         _cleanup(input_path)
-        return False, combined
+        return False, combined, combined
 
     # 2) Run each case in isolation
     for case in case_names:
@@ -75,7 +72,6 @@ def run_individual_tests(docker, image, input_path, pwd, per_test_timeout=15):
     summary_text = "\n".join(summary)
 
     combined_log = summary_text + "\n\n" + "\n".join(logs)
-    _write_log(pwd, logs, combined_log)
 
     # Return True if we executed successfully (even with failing tests);
     # False only if we couldn't run the suite at all.
@@ -91,40 +87,53 @@ def run_individual_tests(docker, image, input_path, pwd, per_test_timeout=15):
     }
 
     scores = {}
-    for i in range(1, len(case_names) + 1):
-        scores[f"test_case_{i}"] = 0
-        passed_case = next((p for p in passed if p["number"] == i), None)
-        if passed_case:
-            scores[f"test_case_{i}"] = passed_case["score"]
+    for case in case_names:
+        m = re.match(r'#(\d+)', case)
+        num = int(m.group(1)) if m else 0
+        scores[f"test_case_{num}"] = 0
+    for p in passed:
+        scores[f"test_case_{p['number']}"] = p['score']
 
     return True, {
         "summary": summary,
         "scores": scores,
-    }
-
-def _write_log(pwd, logs, combined):
-    try:
-        with open(os.path.join(pwd, "data.log"), "w", encoding='utf-8') as f:
-            f.write(combined)
-    except Exception:
-        pass
+    }, combined_log
 
 def _cleanup(input_path):
     shutil.rmtree(os.path.join(input_path, "doctest"), ignore_errors=True)
 
 def run_single_case(case, docker, image, logs, passed, failed, input_path, workdir, exe, per_test_timeout):
+    # Use "#N *" wildcard so the comma in "Score: N" isn't treated as a
+    # doctest filter separator (commas separate multiple filter patterns).
     number = int(re.match(r'#(\d+)', case).group(1) if re.match(r'#(\d+)', case) else "0")
     score = int(re.search(r'Score:\s+(\d+)', case).group(1) if re.search(r'Score:\s+(\d+)', case) else "0")
-    # Quote the case for doctest; double quotes are supported
+    case_filter = shlex.quote(f"#{number} *")
     cmd = (f'{workdir}{exe} '
-            f'--test-case="{case}" --no-breaks --abort-after=0 --no-colors')
+            f'--test-case={case_filter} --no-breaks --abort-after=0 --no-colors')
     case_dict = { "number": number, "name": case, "score": score }
     try:
         res = docker.run(image, input_path, cmd, per_test_timeout)
         out = (res.stdout or "") + "\n" + (res.stderr or "")
         logs.append(out)
-        # Heuristic: decide pass/fail from doctest footer for this run
-        if re.search(r'\bStatus:\s*SUCCESS\b', out):
+        # Detect process crashes (SIGSEGV, SIGABRT, etc.): doctest exits 0 on
+        # full pass, 1 on test failures; anything else means the process crashed.
+        if res.returncode not in (0, 1):
+            snippet = out.strip()[-500:] if out.strip() else f"Exit code {res.returncode}"
+            case_dict['failed_check'] = "Runtime error"
+            case_dict['failed_value'] = snippet
+            failed.append(case_dict)
+            return
+        # Parse doctest footer: "test cases: T | P passed | F failed | S skipped"
+        footer = re.search(
+            r'test cases:\s*(\d+)\s*\|\s*(\d+)\s*passed\s*\|\s*(\d+)\s*failed\s*\|\s*(\d+)\s*skipped',
+            out
+        )
+        if footer and int(footer.group(2)) == 0 and int(footer.group(3)) == 0 and int(footer.group(4)) > 0:
+            # Filter didn't match any test case — treat as failure
+            case_dict['failed_check'] = "Test case not found (skipped)"
+            case_dict['failed_value'] = "Filter did not match any test case"
+            failed.append(case_dict)
+        elif re.search(r'\bStatus:\s*SUCCESS\b', out):
             passed.append(case_dict)
         elif re.search(r'\bStatus:\s*FAILURE\b', out) or re.search(r'\bfailed\b', out, re.I):
             fail_pattern = re.compile(
@@ -155,6 +164,6 @@ def run_single_case(case, docker, image, logs, passed, failed, input_path, workd
         logs.append(f'{case}\nTIMED OUT\n')
     except Exception as e:
         case_dict['failed_check'] = "Runtime error"
-        case_dict['failed_value'] = "Runtime error"
+        case_dict['failed_value'] = f"{type(e).__name__}: {e}"
         failed.append(case_dict)
-        logs.append(f'{case}\nCRASHED: {e}\n')
+        logs.append(f'{case}\nEXCEPTION: {type(e).__name__}: {e}\n')

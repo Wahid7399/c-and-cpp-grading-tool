@@ -33,7 +33,10 @@ def pull_image(image_name):
     )
 
 def _run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, **kwargs)
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs)
+    result.stdout = (result.stdout or b"").decode("utf-8", errors="replace")
+    result.stderr = (result.stderr or b"").decode("utf-8", errors="replace")
+    return result
 
 def run(image: str, host_src_dir: str, shell_cmd: str, timeout=None):
     host_src_dir = Path(host_src_dir)    

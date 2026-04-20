@@ -18,6 +18,10 @@
         "label": "Doctest extra args",
         "description": "Compiler arguments passed when building doctest runs."
     },
+    "plugins.doctest.include_dirs": {
+        "label": "Doctest include dirs",
+        "description": "Directories to add as -I include paths when compiling doctest. Paths are relative to the student project root."
+    },
     "plugins.doctest.tests_file": {
         "label": "Default tests file",
         "description": "Optional tests file path. Leave null if tests are always passed via CLI."

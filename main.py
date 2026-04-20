@@ -35,12 +35,19 @@ if args.config:
 start_time = time.perf_counter()
 
 checker.init()
-default_tests_path = None
-if settings.plugins.doctest.enabled and settings.plugins.doctest.tests_file is not None:
-    if not os.path.isabs(settings.plugins.doctest.tests_file):
+default_tests_paths = None
+if settings.plugins.doctest.enabled:
+    def _resolve_test_path(p):
+        if os.path.isabs(p):
+            return p
         config_dir = os.path.dirname(args.config) if args.config else os.getcwd()
-        default_tests_path = os.path.abspath(os.path.join(config_dir, settings.plugins.doctest.tests_file))
-checker.setup_tests(args.tests or default_tests_path)
+        return os.path.abspath(os.path.join(config_dir, p))
+
+    if hasattr(settings.plugins.doctest, 'tests_files') and settings.plugins.doctest.tests_files is not None:
+        default_tests_paths = [_resolve_test_path(p) for p in settings.plugins.doctest.tests_files]
+    elif settings.plugins.doctest.tests_file is not None:
+        default_tests_paths = [_resolve_test_path(settings.plugins.doctest.tests_file)]
+checker.setup_tests(args.tests or default_tests_paths)
 
 if args.multifolder:
     csv_path = os.path.join(args.output, "raw_scores.csv")

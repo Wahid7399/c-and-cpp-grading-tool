@@ -113,19 +113,14 @@ class MetrixPlusPlusPlugin(BasePlugin):
             metrics["halstead_difficulty"] = raw.get("std.code.halstead_adv:H_Difficulty", {}).get("stats", {}).get("Total", 0)
         if "std.code.halstead_adv:H_Effort" in raw:
             metrics["halstead_effort"] = raw.get("std.code.halstead_adv:H_Effort", {}).get("stats", {}).get("Total", 0)
-        # if "std.code.mi:simple" in raw:
-        #     metrics["maintainability_index"] = raw.get("std.code.mi:simple", {}).get("stats", {}).get("Total", 0)
-        # Maintainability Index = MAX(0,(171 - 5.2 * ln(Halstead Volume) - 0.23 * (Cyclomatic Complexity) - 16.2 * ln(Lines of Code))*100 / 171)
-        # Calculate manually
-        if "halstead_volume" in metrics and "cyclomatic" in metrics and "lines_of_code" in metrics:
-            V = metrics["halstead_volume"]
-            C = metrics["cyclomatic"]
-            L = metrics["lines_of_code"]
-            if V > 0 and L > 0:
-                MI = max(0, (171 - 5.2 * math.log(V) - 0.23 * C - 16.2 * math.log(L)) * 100 / 171)
-                metrics["maintainability_index"] = MI
-            else:
-                metrics["maintainability_index"] = 0
+        # Maintainability Index = MAX(0,(171 - 5.2*ln(V) - 0.23*CC - 16.2*ln(LOC))*100/171)
+        # Must use per-function AVERAGES, not totals — totals make the formula go deeply negative.
+        V_avg = raw.get("std.code.halstead_adv:H_Volume", {}).get("stats", {}).get("Average", 0)
+        C_avg = raw.get("std.code.complexity:cyclomatic", {}).get("stats", {}).get("Average", 0)
+        L_avg = raw.get("std.code.lines:code", {}).get("stats", {}).get("Average", 0)
+        if V_avg and V_avg > 0 and L_avg and L_avg > 0:
+            MI = max(0, (171 - 5.2 * math.log(V_avg) - 0.23 * C_avg - 16.2 * math.log(L_avg)) * 100 / 171)
+            metrics["maintainability_index"] = round(MI, 2)
         else:
             metrics["maintainability_index"] = 0
 

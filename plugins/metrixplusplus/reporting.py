@@ -93,83 +93,168 @@ def gauge_html(value, good_max, warn_max, reverse=False, min_val=0, max_val=None
       <div class="meter"><div class="bar" style="width:{pct:.1f}%; background:{color};"></div></div>
       <div class="meter-label">{label}</div>'''
 
-def generate_html_report(metrics: dict) -> None:
-    # Ensure all expected metrics are present
+
+def _judgment(value, steps):
+    """steps: list of (max_value, label, color) sorted ascending. Returns (label, color)."""
+    for max_val, label, color in steps:
+        if value <= max_val:
+            return label, color
+    return steps[-1][1], steps[-1][2]
+
+
+def _healthbar_html(label, display_value, bar_pct, judgment_label, color, description, tips):
+    tips_li = "".join("<li>" + tip + "</li>" for tip in tips) if tips else ""
+    tips_block = (
+        "<details class='tips'><summary>How to improve</summary><ul>"
+        + tips_li + "</ul></details>"
+    ) if tips_li else ""
+    return (
+        "<div class='health-card'>"
+        "<div class='health-top'>"
+        "<div class='health-meta'>"
+        "<div class='health-label'>" + label + "</div>"
+        "<div class='health-desc'>" + description + "</div>"
+        "</div>"
+        "<div class='health-right'>"
+        "<div class='health-value'>" + display_value + "</div>"
+        "<div class='health-judgment' style='color:" + color + ";'>" + judgment_label + "</div>"
+        "</div>"
+        "</div>"
+        "<div class='healthbar-track'>"
+        "<div class='healthbar-fill' style='width:" + f"{bar_pct:.1f}" + "%; background:" + color + ";'></div>"
+        "</div>"
+        + tips_block +
+        "</div>"
+    )
+
+
+def generate_html_report(metrics: dict):
     for key in thresholds.keys():
         if key not in metrics:
             metrics[key] = 0.0
 
-    rows = []
+    # ── Health indicators ─────────────────────────────────────────────────
+    cr = float(metrics.get("comment_ratio", 0))
+    cr_bar = min(100.0, cr / 50.0 * 100.0)   # 0–50 % maps to full bar
+    cr_label, cr_color = _judgment(cr, [
+        (5,   "Poor",      "#ef4444"),
+        (10,  "Fair",      "#f59e0b"),
+        (20,  "Good",      "#22c55e"),
+        (35,  "Excellent", "#10b981"),
+        (50,  "Good",      "#22c55e"),
+        (999, "Fair",      "#f59e0b"),   # over-commented
+    ])
+
+    mi = float(metrics.get("maintainability_index", 0))
+    mi_bar = min(100.0, max(0.0, mi))   # MI is 0–100
+    mi_label, mi_color = _judgment(mi, [
+        (20,  "Poor",      "#ef4444"),
+        (50,  "Fair",      "#f59e0b"),
+        (75,  "Good",      "#22c55e"),
+        (999, "Excellent", "#10b981"),
+    ])
+
+    health_html = (
+        _healthbar_html(
+            "Comment Ratio", f"{cr:.1f}%", cr_bar, cr_label, cr_color,
+            descriptions["comment_ratio"], improvement_tips.get("comment_ratio", [])
+        ) + _healthbar_html(
+            "Maintainability Index", f"{mi:.0f} / 100", mi_bar, mi_label, mi_color,
+            descriptions["maintainability_index"], improvement_tips.get("maintainability_index", [])
+        )
+    )
+
+    # ── Raw metrics table ─────────────────────────────────────────────────
+    SKIP = {"halstead_n1", "halstead_n2", "halstead_N1", "halstead_N2",
+            "comment_ratio", "maintainability_index"}
+    raw_rows = []
     for key, val in metrics.items():
-        if key in ["halstead_n1", "halstead_n2", "halstead_N1", "halstead_N2"]:
+        if key in SKIP:
             continue
-        t = thresholds.get(key, {})
-        desc = descriptions.get(key, "No description available.")
-        tips = improvement_tips.get(key, [])
-        gauge = ""
-        if "good_max" in t or "warn_max" in t:
-            gauge = gauge_html(val, t.get("good_max"), t.get("warn_max"), t.get("reverse", False))
-        tips_html = "".join(f"<li>{tip}</li>" for tip in tips) if tips else "<li>No specific tips.</li>"
-        rows.append(f"""
-        <section class="card">
-            <div class="card-header"><h3>{humanize(key)}</h3><div class="value">{val:,.0f}</div></div>
-            <p class="desc">{desc}</p>
-            {gauge}
-            <details class="tips"><summary>How to improve</summary><ul>{tips_html}</ul></details>
-        </section>
-        """)
+        desc = descriptions.get(key, "")
+        if isinstance(val, float) and val == int(val):
+            val_str = f"{int(val):,}"
+        elif isinstance(val, float):
+            val_str = f"{val:,.2f}"
+        else:
+            val_str = str(val)
+        raw_rows.append(
+            "<tr>"
+            "<td class='rk'>" + humanize(key) + "</td>"
+            "<td class='rv'>" + val_str + "</td>"
+            "<td class='rd'>" + desc + "</td>"
+            "</tr>"
+        )
 
-    html = f"""<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Software Quality Report</title>
-<style>
-:root {{ --bg:#0f172a; --panel:#111827; --card:#0b1220; --text:#e5e7eb; --muted:#94a3b8; --accent:#60a5fa; }}
-* {{ box-sizing:border-box; }}
-body {{ margin:0; padding:24px; background:var(--bg); color:var(--text); font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; }}
-header {{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:20px; border-bottom:1px solid #1f2937; padding-bottom:12px; }}
-h1 {{ margin:0; font-size:28px; }}
-.wrapper {{ max-width: 1000px; margin: 40px auto; padding: 0 16px; }}
-.meta {{ color:var(--muted); font-size:14px; }}
-.summary-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin:16px 0 28px; }}
-.summary-tile {{ background:var(--panel); padding:14px 16px; border-radius:14px; border:1px solid #1f2937; }}
-.summary-tile .k {{ color:var(--muted); font-size:12px; }}
-.summary-tile .v {{ font-weight:700; font-size:18px; }}
-main {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:16px; }}
-.card {{ background:var(--card); border:1px solid #1f2937; border-radius:16px; padding:16px; box-shadow:0 10px 20px rgba(0,0,0,.2); }}
-.card-header {{ display:flex; align-items:center; justify-content:space-between; gap:8px; }}
-.card h3 {{ margin:0; font-size:16px; text-transform:capitalize; }}
-.value {{ font-variant-numeric:tabular-nums; color:var(--accent); font-weight:700; }}
-.desc {{ color:var(--muted); margin:8px 0 10px; line-height:1.4; }}
-.meter {{ width:100%; height:10px; background:#111827; border:1px solid #1f2937; border-radius:999px; overflow:hidden; }}
-.bar {{ height:100%; transition:width .6s ease; }}
-.meter-label {{ margin-top:6px; font-size:12px; color:var(--muted); }}
-details.tips {{ margin-top:10px; }}
-details.tips summary {{ cursor:pointer; color:#cbd5e1; }}
-footer {{ margin-top:28px; color:#94a3b8; font-size:12px; }}
-</style></head>
-<body>
-<div class="wrapper">
-<header>
-    <h1>Software Quality Report</h1>
-    <div class="meta">Generated {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>
-</header>
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-<section class="summary-grid">
-    <div class="summary-tile"><div class="k">Cyclomatic complexity</div><div class="v">{metrics['cyclomatic']:.0f}</div></div>
-    <div class="summary-tile"><div class="k">Lines of Code</div><div class="v">{metrics['lines_of_code']:.0f}</div></div>
-    <div class="summary-tile"><div class="k">Comment Lines</div><div class="v">{metrics['lines_of_comments']:.0f}</div></div>
-    <div class="summary-tile"><div class="k">Comment %</div><div class="v">{metrics['comment_ratio']:.1f}%</div></div>
-    <div class="summary-tile"><div class="k">Halstead Volume</div><div class="v">{metrics['halstead_volume']:.0f}</div></div>
-    <div class="summary-tile"><div class="k">Halstead Difficulty</div><div class="v">{metrics['halstead_difficulty']:.1f}</div></div>
-    <div class="summary-tile"><div class="k">Effort</div><div class="v">{metrics['halstead_effort']:.0f}</div></div>
-    <div class="summary-tile"><div class="k">Maintainability Index</div><div class="v">{metrics['maintainability_index']:.0f}</div></div>
-</section>
+    css = (
+        ":root{--bg:#0f172a;--panel:#111827;--card:#0b1220;--text:#e5e7eb;--muted:#94a3b8;--accent:#60a5fa}"
+        "*{box-sizing:border-box}"
+        "body{margin:0;padding:24px;background:var(--bg);color:var(--text);"
+        "font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}"
+        ".wrapper{max-width:900px;margin:40px auto;padding:0 16px}"
+        "header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;"
+        "margin-bottom:28px;border-bottom:1px solid #1f2937;padding-bottom:14px}"
+        "h1{margin:0;font-size:26px;font-weight:700}"
+        "h2{margin:0 0 14px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;"
+        "color:var(--muted);font-weight:600}"
+        ".meta{color:var(--muted);font-size:13px}"
+        ".health-section{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:28px}"
+        "@media(max-width:600px){.health-section{grid-template-columns:1fr}}"
+        ".health-card{background:#121a2e;border:1px solid #1f2937;border-radius:16px;padding:18px 20px}"
+        ".health-top{display:flex;justify-content:space-between;align-items:flex-start;"
+        "gap:12px;margin-bottom:14px}"
+        ".health-meta{flex:1}"
+        ".health-label{font-size:15px;font-weight:700;margin-bottom:4px}"
+        ".health-desc{font-size:12px;color:var(--muted);line-height:1.45}"
+        ".health-right{text-align:right;flex-shrink:0}"
+        ".health-value{font-size:24px;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums}"
+        ".health-judgment{font-size:12px;font-weight:700;margin-top:3px;letter-spacing:.06em;text-transform:uppercase}"
+        ".healthbar-track{width:100%;height:10px;background:#1e293b;border-radius:999px;overflow:hidden}"
+        ".healthbar-fill{height:100%;border-radius:999px;transition:width .6s ease}"
+        "details.tips{margin-top:12px}"
+        "details.tips summary{cursor:pointer;color:#cbd5e1;font-size:12px}"
+        "details.tips ul{margin:6px 0 0 16px;padding:0;color:var(--muted);font-size:12px;line-height:1.6}"
+        ".raw-section{background:#121a2e;border:1px solid #1f2937;border-radius:16px;padding:18px 20px}"
+        ".raw-note{font-weight:400;font-size:11px;color:var(--muted);margin-left:8px}"
+        "table{width:100%;border-collapse:collapse;font-size:13px}"
+        "thead th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;"
+        "text-transform:uppercase;letter-spacing:.06em;padding:0 8px 10px;border-bottom:1px solid #1f2937}"
+        "tbody tr:hover td{background:rgba(255,255,255,.025)}"
+        "td{padding:9px 8px;vertical-align:top;border-bottom:1px solid #1e293b}"
+        ".rk{font-weight:600;white-space:nowrap;color:#cbd5e1}"
+        ".rv{font-variant-numeric:tabular-nums;color:var(--accent);white-space:nowrap;"
+        "text-align:right;padding-right:20px}"
+        ".rd{color:var(--muted);line-height:1.4}"
+        "footer{margin-top:24px;color:#94a3b8;font-size:12px}"
+    )
 
-<main>{''.join(rows)}</main>
-
-<footer><p><strong>Notes:</strong> Thresholds are heuristic guidelines; interpret within your project’s context.</p></footer>
-</div>
-</body></html>
-    """
+    html = (
+        "<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+        "<title>Software Quality Report</title>"
+        "<style>" + css + "</style></head>"
+        "<body><div class='wrapper'>"
+        "<header>"
+        "<h1>Software Quality Report</h1>"
+        "<div class='meta'>Generated " + now + "</div>"
+        "</header>"
+        "<h2>Quality Indicators</h2>"
+        "<div class='health-section'>" + health_html + "</div>"
+        "<div class='raw-section'>"
+        "<h2>Raw Metrics <span class='raw-note'>context-dependent — interpret relative to project size</span></h2>"
+        "<table><thead><tr>"
+        "<th>Metric</th>"
+        "<th style='text-align:right;padding-right:20px;'>Value</th>"
+        "<th>Description</th>"
+        "</tr></thead>"
+        "<tbody>" + "".join(raw_rows) + "</tbody></table>"
+        "</div>"
+        "<footer><p><strong>Notes:</strong> Comment Ratio and Maintainability Index are the most "
+        "size-independent indicators. All other metrics scale with project size — use them for "
+        "comparison, not absolute judgment.</p></footer>"
+        "</div></body></html>"
+    )
 
     return html, metrics
