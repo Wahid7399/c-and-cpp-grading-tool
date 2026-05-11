@@ -46,7 +46,7 @@ The extension auto-detects a workspace-root config file named:
 
 - `.quality_metrics.config.json`
 
-You can generate this file using `C/C++ Grader Tool: Create Config File`.
+You can generate this file using `C/C++ Grader Tool: Create Config File` through the VSCode Command Pallete option which will walk you through the creation process.
 
 ## Example Config
 
