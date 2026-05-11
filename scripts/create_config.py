@@ -1,6 +1,7 @@
 import argparse
 import json
 from pathlib import Path
+from typing import Optional
 
 MISSING = object()
 
@@ -25,7 +26,7 @@ def _format_default(value, limit: int = 90) -> str:
     return text[: limit - 3] + "..."
 
 
-def _print_field(label: str, default=None, meta: dict | None = None, hint: str | None = None):
+def _print_field(label: str, default=None, meta: Optional[dict] = None, hint: Optional[str] = None):
     print(f"\n• {label}")
     if meta:
         _show_description(meta)
@@ -50,7 +51,7 @@ def _show_description(meta: dict):
         print(f"  {description}")
 
 
-def _prompt_text(label: str, default: str | None = None, allow_empty: bool = False, meta: dict | None = None) -> str | None:
+def _prompt_text(label: str, default: Optional[str] = None, allow_empty: bool = False, meta: Optional[dict] = None) -> Optional[str]:
     _print_field(label, default, meta)
     while True:
         value = input("  Value> ").strip()
@@ -63,7 +64,7 @@ def _prompt_text(label: str, default: str | None = None, allow_empty: bool = Fal
         print("Please provide a value.")
 
 
-def _prompt_bool(label: str, default: bool, meta: dict | None = None) -> bool:
+def _prompt_bool(label: str, default: bool, meta: Optional[dict] = None) -> bool:
     _print_field(label, default, meta, hint="Type y/yes or n/no. Press Enter to keep default.")
     default_hint = "Y/n" if default else "y/N"
     while True:
@@ -92,7 +93,7 @@ def _coerce_scalar(value: str, desired_type: type):
     return value
 
 
-def _prompt_number(label: str, default, desired_type: type, meta: dict | None = None):
+def _prompt_number(label: str, default, desired_type: type, meta: Optional[dict] = None):
     _print_field(label, default, meta, hint=f"Enter a {desired_type.__name__} value.")
     while True:
         value = input("  Value> ").strip()
@@ -104,7 +105,7 @@ def _prompt_number(label: str, default, desired_type: type, meta: dict | None = 
             print(f"Please provide a valid {desired_type.__name__} value.")
 
 
-def _prompt_none(label: str, meta: dict | None = None):
+def _prompt_none(label: str, meta: Optional[dict] = None):
     _print_field(
         label,
         None,
@@ -121,7 +122,7 @@ def _prompt_none(label: str, meta: dict | None = None):
             return value
 
 
-def _prompt_list(label: str, default: list, meta: dict | None = None) -> list:
+def _prompt_list(label: str, default: list, meta: Optional[dict] = None) -> list:
     _print_field(label, default, meta)
     if default and all(not isinstance(x, (dict, list)) for x in default):
         print("  Hint: Comma-separated values or JSON list. Enter keeps default.")
@@ -164,7 +165,7 @@ def _load_base_config(path: Path) -> dict:
         return json.load(f)
 
 
-def _load_fields_metadata(path: Path | None) -> dict:
+def _load_fields_metadata(path: Optional[Path]) -> dict:
     if path is None or not path.exists():
         return {}
     with path.open("r", encoding="utf-8") as f:

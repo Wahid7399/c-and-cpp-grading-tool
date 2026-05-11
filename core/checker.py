@@ -4,7 +4,7 @@ from config import settings
 from plugins import metric_plugins, test_plugins, BasePlugin
 from tools.utils import get_latest_in_zip
 from zipfile import ZipFile
-from .reporting import build_single_report
+from .reporting import build_single_report, inject_scores_into_report
 from . import relative_grader
 from . import absolute_grader
 from .scoring import apply_weight_overrides
@@ -183,3 +183,29 @@ def grade(results: dict, output: str, grading: str):
         relative_grader.run(results, weights, output)
     else:
         absolute_grader.run(results, weights, output)
+        scores = _read_grades_csv(output)
+        inject_scores_into_report(output, scores)
+
+
+def _read_grades_csv(output: str) -> dict:
+    """Read key score fields from grades.csv into a float dict."""
+    grades_path = os.path.join(output, "grades.csv")
+    summary = {}
+    if not os.path.exists(grades_path):
+        return summary
+    try:
+        with open(grades_path, "r", encoding="utf-8") as f:
+            for line in f:
+                parts = line.rstrip("\n").split(",")
+                if len(parts) >= 2:
+                    key = parts[0].strip()
+                    val = parts[1].strip()
+                    if key in ("final_score", "test_percentage", "quality_percentage",
+                               "test_total", "test_out_of", "quality_total"):
+                        try:
+                            summary[key] = float(val)
+                        except ValueError:
+                            pass
+    except Exception:
+        pass
+    return summary

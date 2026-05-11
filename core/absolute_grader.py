@@ -2,7 +2,21 @@ from math import erf, sqrt
 import pandas as pd
 import os
 
+from config import settings
 from .scoring import default_max_score, evaluate_absolute_rule, get_metric_scoring, has_configured_metrics
+
+
+def _resolve_test_out_of(weights: dict, fallback_count: int) -> float:
+    """Resolve total available test points from doctest scoring if available."""
+    for metric, cfg in weights.items():
+        if not metric.startswith("test_case_"):
+            continue
+        plugin_instance = cfg.get("plugin")
+        scoring_map = getattr(plugin_instance, "scoring", None)
+        if isinstance(scoring_map, dict) and scoring_map:
+            return float(sum(scoring_map.values()))
+        break
+    return float(fallback_count)
 
 def zscore(series: pd.Series) -> pd.Series:
     mean, std = series.mean(), series.std(ddof=0)
@@ -83,14 +97,34 @@ def run(results: dict, weights: dict, output: str) -> None:
             results_df[test_col] = pd.to_numeric(df[test_col], errors="coerce").fillna(0.0).round(2)
         if test_cols:
             results_df["test_total"] = results_df[test_cols].sum(axis=1).round(2)
-            results_df["test_out_of"] = float(len(test_cols))
-            results_df["test_percentage"] = (
-                results_df["test_total"] / results_df["test_out_of"] * 100
-            ).round(2)
+            test_out_of = _resolve_test_out_of(weights, len(test_cols))
+            results_df["test_out_of"] = test_out_of
+            if test_out_of > 0:
+                results_df["test_percentage"] = (
+                    results_df["test_total"] / test_out_of * 100
+                ).clip(lower=0.0).round(2)
+            else:
+                results_df["test_percentage"] = 0.0
+        else:
+            results_df["test_total"] = 0.0
+            results_df["test_out_of"] = 0.0
+            results_df["test_percentage"] = 0.0
 
         # In configured absolute mode, treat quality_total as the quality score out of 100.
         results_df["quality_out_of"] = 100.0
         results_df["quality_percentage"] = results_df["quality_total"].clip(lower=0.0, upper=100.0).round(2)
+
+        # Calculate final score with configurable weights
+        scoring_cfg = settings.to_dict().get("scoring", {})
+        final_score_cfg = scoring_cfg.get("final_score", {})
+        quality_weight = float(final_score_cfg.get("quality_weight", 0.3))
+        test_weight = float(final_score_cfg.get("test_weight", 0.7))
+        test_cap = float(final_score_cfg.get("test_cap", 100.0))
+        
+        results_df["final_score"] = (
+            results_df["quality_percentage"] * quality_weight + 
+            results_df["test_percentage"].clip(upper=test_cap) * test_weight
+        ).clip(lower=0.0, upper=100.0).round(2)
 
         df_out = (
             results_df.set_index("key").T.reset_index().rename(columns={"index": "metric"}).sort_index(axis=1)
@@ -138,6 +172,21 @@ def run(results: dict, weights: dict, output: str) -> None:
         results_df["quality_percentage"] = 0.0
     else:
         results_df["quality_percentage"] = (results_df["quality_total"] / results_df["quality_out_of"] * 100).round(2)
+
+        # Calculate final score with configurable weights if test scores exist
+    if "test_percentage" in results_df.columns:
+        scoring_cfg = settings.to_dict().get("scoring", {})
+        final_score_cfg = scoring_cfg.get("final_score", {})
+        quality_weight = float(final_score_cfg.get("quality_weight", 0.3))
+        test_weight = float(final_score_cfg.get("test_weight", 0.7))
+        test_cap = float(final_score_cfg.get("test_cap", 100.0))
+        
+        results_df["final_score"] = (
+            results_df["quality_percentage"] * quality_weight + 
+            results_df["test_percentage"].clip(upper=test_cap) * test_weight
+        ).clip(lower=0.0, upper=100.0).round(2)
+    else:
+        results_df["final_score"] = results_df["quality_percentage"].clip(lower=0.0, upper=100.0).round(2)
 
     df_out = (
         results_df.set_index("key").T.reset_index().rename(columns={"index": "metric"}).sort_index(axis=1)

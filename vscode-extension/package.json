@@ -1,8 +1,8 @@
 {
-  "name": "quality-metrics-runner",
-  "displayName": "Quality Metrics Runner",
+  "name": "c-cpp-grader-tool",
+  "displayName": "C/C++ Grader Tool",
   "description": "Run the quality-metrics Python CLI from VS Code.",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "publisher": "local",
   "engines": {
     "vscode": "^1.85.0"
@@ -20,11 +20,11 @@
     "commands": [
       {
         "command": "qualityMetrics.run",
-        "title": "Quality Metrics: Run Analysis"
+        "title": "C/C++ Grader Tool: Run Analysis"
       },
       {
         "command": "qualityMetrics.createConfig",
-        "title": "Quality Metrics: Create Config File"
+        "title": "C/C++ Grader Tool: Create Config File"
       }
     ],
     "menus": {

@@ -173,8 +173,58 @@ def render_summary(name: str, summary: Any) -> str:
 # 3) HTML template
 # -------------------------
 
+
+def _score_banner(s: Dict[str, float]) -> str:
+    if not s:
+        return ""
+    final = s.get("final_score")
+    test_pct = s.get("test_percentage")
+    qual_pct = s.get("quality_percentage")
+    test_total = s.get("test_total")
+    test_out_of = s.get("test_out_of")
+    qual_total = s.get("quality_total")
+
+    def ring_svg(value: float, color: str) -> str:
+        v = clamp(value)
+        r = 36
+        circ = 2 * math.pi * r
+        dash = circ * v / 100
+        gap = circ - dash
+        return f"""<svg viewBox="0 0 88 88" width="88" height="88">
+          <circle cx="44" cy="44" r="{r}" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="8"/>
+          <circle cx="44" cy="44" r="{r}" fill="none" stroke="{color}" stroke-width="8"
+            stroke-dasharray="{dash:.2f} {gap:.2f}" stroke-dashoffset="{circ/4:.2f}"
+            stroke-linecap="round"/>
+          <text x="44" y="49" text-anchor="middle" fill="{color}"
+            font-family="system-ui,sans-serif" font-size="15" font-weight="700">{value:.1f}%</text>
+        </svg>"""
+
+    items = []
+    if final is not None:
+        items.append(("Final Score", final, "#6ea8fe", None))
+    if test_pct is not None:
+        sub = f"{nice_num(test_total)}/{nice_num(test_out_of)}" if test_total is not None and test_out_of is not None else None
+        items.append(("Test Score", test_pct, "#37d39e", sub))
+    if qual_pct is not None:
+        sub = f"{nice_num(qual_total)}/100" if qual_total is not None else None
+        items.append(("Quality Score", qual_pct, "#9b87f5", sub))
+
+    cols = "".join(f"""
+      <div class="sc-col">
+        {ring_svg(pct_val, color)}
+        <div class="sc-label">{escape(label)}</div>
+        {f'<div class="sc-sub">{escape(sub)}</div>' if sub else ""}
+      </div>""" for label, pct_val, color, sub in items)
+
+    return f"""<div class="scorecard">{cols}</div>"""
+
+
+SCORECARD_PLACEHOLDER = "<!-- __SCORECARD__ -->"
+
+
 def build_html(data: List[Dict[str, Any]], title: str = "Project Reports") -> str:
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    banner = SCORECARD_PLACEHOLDER
     cards_html = []
     for entry in data:
         name = str(entry.get("name", "Untitled"))
@@ -362,6 +412,18 @@ def build_html(data: List[Dict[str, Any]], title: str = "Project Reports") -> st
   .kv .k {{ color: var(--muted); font-size: 12px; }}
   .kv .v {{ font-size: 13px; }}
 
+  /* Scorecard banner */
+  .scorecard {{
+    display: flex; justify-content: center; gap: 32px; flex-wrap: wrap;
+    padding: 24px 20px; margin-bottom: 24px;
+    background: linear-gradient(135deg, rgba(110,168,254,0.08), rgba(155,135,245,0.08));
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: var(--radius-xl);
+  }}
+  .sc-col {{ display: flex; flex-direction: column; align-items: center; gap: 6px; }}
+  .sc-label {{ font-size: 13px; color: var(--muted); font-weight: 600; }}
+  .sc-sub {{ font-size: 12px; color: var(--faint); font-family: ui-monospace, monospace; }}
+
   /* Footer */
   footer {{ margin-top: 26px; color: var(--muted); font-size: 13px; text-align: center; }}
 </style>
@@ -370,11 +432,12 @@ def build_html(data: List[Dict[str, Any]], title: str = "Project Reports") -> st
   <div class="wrap">
     <header>
       <div>
-        <h1>Quality Metrics Report</h1>
+        <h1>C/C++ assignment grades/scores</h1>
         <div class="subtitle">Summary of key quality metrics</div>
       </div>
       <div class="tiny muted mono">{escape(now)}</div>
     </header>
+    {banner}
     <section class="grid">
       {''.join(cards_html)}
     </section>
@@ -389,6 +452,19 @@ def build_html(data: List[Dict[str, Any]], title: str = "Project Reports") -> st
 def build_single_report(items, output_path):
     html = build_html(items)
     with open(os.path.join(output_path, "report.html"), "w", encoding='utf-8') as f:
+        f.write(html)
+
+
+def inject_scores_into_report(output_path: str, scores: Dict[str, float]) -> None:
+    """Called after grading to patch the scorecard placeholder in report.html."""
+    report_path = os.path.join(output_path, "report.html")
+    if not os.path.exists(report_path) or not scores:
+        return
+    banner = _score_banner(scores)
+    with open(report_path, "r", encoding="utf-8") as f:
+        html = f.read()
+    html = html.replace(SCORECARD_PLACEHOLDER, banner, 1)
+    with open(report_path, "w", encoding="utf-8") as f:
         f.write(html)
 
 # def build_single_report(items, output_path, title="Quality Metrics Report") -> None:
