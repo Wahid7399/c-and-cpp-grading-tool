@@ -17,7 +17,7 @@ The tool generates an HTML report plus CSV/JSON score artifacts.
 - Docker Desktop (must be installed and running)
 - `clang-tidy` available on PATH (default command: `clang-tidy`)
 
-Doctest and Valgrind run inside a docker image. It should automatically be pulled.
+Doctest and Valgrind run inside a docker image. The image will be pulled automatically.
 
 ## Install and Use in VS Code
 
