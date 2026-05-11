@@ -35,7 +35,7 @@ class CppcheckPlugin(BasePlugin):
                 [settings.plugins.cppcheck.command, "--version"],
                 check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
             )
-            print("✅ Cppcheck is installed")
+            print("✅ Cppcheck is ready")
             return
         except (subprocess.CalledProcessError, FileNotFoundError):
             print("❌ Cppcheck is not installed, attempting an auto-install.")

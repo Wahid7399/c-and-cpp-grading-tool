@@ -52,7 +52,7 @@ class ClangTidyPlugin(BasePlugin):
                 [settings.plugins.clangtidy.command, "--version"],
                 check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
             )
-            print("✅ Clang Tidy is installed")
+            print("✅ Clang Tidy is ready")
         except subprocess.CalledProcessError:
             print("❌ Clang Tidy is not installed. Please install it using `pip install -r requirements.txt` or `pip install clang-tidy==20.1.0`")
 

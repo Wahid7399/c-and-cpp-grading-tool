@@ -70,7 +70,7 @@ class DoctestPlugin(TestPlugin):
         except Exception as e:
             print(f"❌ {e}")
             sys.exit(1)
-        print("✅ Doctest is installed")
+        print("✅ Doctest is ready")
 
     def setup_tests(self, test_files) -> bool:
         """
@@ -207,8 +207,13 @@ class DoctestPlugin(TestPlugin):
                 with open(os.path.join(input_path, "main.cpp"), 'w') as f:
                     f.write(existing_main)
 
+        timeout = getattr(settings.plugins.doctest, 'per_test_timeout', 15)
         return run_individual_tests(
-            docker, DoctestPlugin.DOCKER_IMAGE, input_path, per_test_timeout=15
+            docker,
+            DoctestPlugin.DOCKER_IMAGE,
+            input_path,
+            per_test_timeout=timeout,
+            scoring_map=self.scoring,
         )
 
     def run(self, input_path, output_path) -> Tuple[dict, dict, str]:

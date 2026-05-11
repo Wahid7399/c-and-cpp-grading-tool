@@ -1,7 +1,7 @@
 import os, re, shutil, subprocess, shlex
 import json
 
-def run_individual_tests(docker, image, input_path, per_test_timeout=15):
+def run_individual_tests(docker, image, input_path, per_test_timeout=15, scoring_map=None):
     workdir = f"cd doctest; "
     exe = "./doctest_executable.out"
 
@@ -41,7 +41,7 @@ def run_individual_tests(docker, image, input_path, per_test_timeout=15):
     for case in case_names:
         run_single_case(
             case, docker, image, logs, passed, failed,
-            input_path, workdir, exe, per_test_timeout
+            input_path, workdir, exe, per_test_timeout, scoring_map or {}
         )
     # with ThreadPoolExecutor(max_workers=4) as executor:
     #     futures = {executor.submit(
@@ -102,11 +102,11 @@ def run_individual_tests(docker, image, input_path, per_test_timeout=15):
 def _cleanup(input_path):
     shutil.rmtree(os.path.join(input_path, "doctest"), ignore_errors=True)
 
-def run_single_case(case, docker, image, logs, passed, failed, input_path, workdir, exe, per_test_timeout):
+def run_single_case(case, docker, image, logs, passed, failed, input_path, workdir, exe, per_test_timeout, scoring_map):
     # Use "#N *" wildcard so the comma in "Score: N" isn't treated as a
     # doctest filter separator (commas separate multiple filter patterns).
     number = int(re.match(r'#(\d+)', case).group(1) if re.match(r'#(\d+)', case) else "0")
-    score = int(re.search(r'Score:\s+(\d+)', case).group(1) if re.search(r'Score:\s+(\d+)', case) else "0")
+    score = int(scoring_map.get(number, 0))
     case_filter = shlex.quote(f"#{number} *")
     cmd = (f'{workdir}{exe} '
             f'--test-case={case_filter} --no-breaks --abort-after=0 --no-colors')

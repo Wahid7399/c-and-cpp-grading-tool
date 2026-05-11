@@ -8,7 +8,8 @@
             ],
             "include_dirs": [],
             "tests_file": null,
-            "tests_files": null
+            "tests_files": null,
+            "per_test_timeout": 15
         },
         "clangtidy": {
             "enabled": true,
@@ -36,11 +37,126 @@
             "main_file": null,
             "compiler": "gcc",
             "extra_args": ["-std=c11"],
-            "include_dirs": []
+            "include_dirs": [],
+            "configs": null
         },
         "cppcheck": {
             "enabled": false,
             "command": "cppcheck"
+        }
+    },
+    "scoring": {
+        "metrics": {
+            "maintainability_index": {
+                "weight": 1.0,
+                "direction": 1,
+                "absolute": {
+                    "strategy": "identity",
+                    "max_score": 100.0
+                }
+            },
+            "correctness_violations": {
+                "weight": 2.0,
+                "direction": -1,
+                "absolute": {
+                    "strategy": "count_penalty",
+                    "base_score": 100.0,
+                    "cap": 5.0
+                }
+            },
+            "valgrind_errors": {
+                "weight": 2.0,
+                "direction": -1,
+                "absolute": {
+                    "strategy": "count_penalty",
+                    "base_score": 100.0,
+                    "cap": 4.0
+                }
+            },
+            "valgrind_leaks": {
+                "weight": 0.1,
+                "direction": -1,
+                "absolute": {
+                    "strategy": "count_penalty",
+                    "base_score": 100.0,
+                    "cap": 50.0
+                }
+            },
+            "performance_violations": {
+                "weight": 2.0,
+                "direction": -1,
+                "absolute": {
+                    "strategy": "count_penalty",
+                    "base_score": 100.0,
+                    "cap": 5.0
+                }
+            },
+            "cognitive_complexity_violations": {
+                "weight": 1.5,
+                "direction": -1,
+                "absolute": {
+                    "strategy": "count_penalty",
+                    "base_score": 100.0,
+                    "cap": 5.0
+                }
+            },
+            "guidelines_violations": {
+                "weight": 1.5,
+                "direction": -1,
+                "absolute": {
+                    "strategy": "count_penalty",
+                    "base_score": 100.0,
+                    "cap": 5.0
+                }
+            },
+            "identifier_naming_violations": {
+                "weight": 1.0,
+                "direction": -1,
+                "absolute": {
+                    "strategy": "count_penalty",
+                    "base_score": 100.0,
+                    "cap": 10.0
+                }
+            },
+            "readability_violations": {
+                "weight": 1.5,
+                "direction": -1,
+                "absolute": {
+                    "strategy": "count_penalty",
+                    "base_score": 100.0,
+                    "cap": 5.0
+                }
+            },
+            "cyclomatic": {
+                "weight": 0.1,
+                "direction": -1,
+                "absolute": {
+                    "strategy": "threshold_penalty",
+                    "base_score": 100.0,
+                    "threshold": 65.5,
+                    "cap": 50.0
+                }
+            },
+            "halstead_difficulty": {
+                "weight": 0.03,
+                "direction": -1,
+                "absolute": {
+                    "strategy": "threshold_penalty",
+                    "base_score": 100.0,
+                    "threshold": 183.34,
+                    "cap": 150.0
+                }
+            },
+            "comment_ratio": {
+                "weight": 0.3,
+                "direction": 1,
+                "absolute": {
+                    "strategy": "comment_ratio",
+                    "base_score": 100.0,
+                    "target": 8.0,
+                    "bonus_cap": 5.0
+                }
+            }
         }
     }
 }

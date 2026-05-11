@@ -88,6 +88,47 @@ Edit the file in `config/default.json` or provide a file via command line argume
 ```json
 {
     "python_slug": "python3",
+    "scoring": {
+        "metrics": {
+            "maintainability_index": {
+                "weight": 1.0,
+                "direction": 1,
+                "absolute": {
+                    "strategy": "identity",
+                    "max_score": 100.0
+                }
+            },
+            "correctness_violations": {
+                "weight": 2.0,
+                "direction": -1,
+                "absolute": {
+                    "strategy": "count_penalty",
+                    "base_score": 100.0,
+                    "cap": 5.0
+                }
+            },
+            "cyclomatic": {
+                "weight": 0.1,
+                "direction": -1,
+                "absolute": {
+                    "strategy": "threshold_penalty",
+                    "base_score": 100.0,
+                    "threshold": 13.0,
+                    "cap": 50.0
+                }
+            },
+            "comment_ratio": {
+                "weight": 0.3,
+                "direction": 1,
+                "absolute": {
+                    "strategy": "comment_ratio",
+                    "base_score": 100.0,
+                    "target": 8.0,
+                    "bonus_cap": 10.0
+                }
+            }
+        }
+    },
     "plugins": {
         "metrixplusplus": {
             "enabled": true,
@@ -113,12 +154,26 @@ Edit the file in `config/default.json` or provide a file via command line argume
     }
 ```
 
+The `scoring.metrics` block controls per-metric weights for grading. In absolute grading, the optional `absolute` rule controls how each raw metric becomes a score:
+
+- `identity`: use the raw metric value directly.
+- `count_penalty`: subtract the metric value from `base_score`, capped by `cap`.
+- `threshold_penalty`: subtract only the amount above `threshold`, capped by `cap`.
+- `comment_ratio`: subtract any shortfall below `target` and add a capped bonus above it.
+
+If a metric is not listed under `scoring.metrics`, the grader falls back to the plugin's built-in behavior.
 ### Custom config
 
 A custom config file can be generated & passed to the checker:
 
 ```bash
 python scripts/create_config.py --output .quality_metrics.config.json
+```
+
+You can also re-grade an existing `raw_scores.csv` with a custom config:
+
+```bash
+python scripts/regrade.py --output ./test_1 --grading absolute --config ./.quality_metrics.config.json
 ```
 
 ## Project Structure

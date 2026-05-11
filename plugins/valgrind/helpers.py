@@ -20,6 +20,29 @@ _IGNORE_PREFIXES = (
     "All heap blocks were freed -- no leaks are possible",
 )
 
+# Simple one-line drops (no ==PID== tag, pure noise).
+_DROP_LINE_PREFIXES = (
+    "WARNING: The requested image's platform",  # Docker cross-platform warning
+)
+
+# When any of these appear, skip this line AND all subsequent lines.
+# Valgrind prints its own crash dump after a SIGSEGV / impossible signal —
+# none of that output describes student code errors.
+_CRASH_DUMP_TRIGGERS = (
+    "valgrind: the 'impossible' happened:",
+    "host stacktrace:",
+    "sched status:",
+)
+
+# Lines that describe a process signal/termination — valgrind reports these
+# as informational context, not as counted errors (ERROR SUMMARY stays at 0).
+# We parse them separately so they don't pollute the errors list.
+_SIGNAL_PREFIXES = (
+    "Process terminating with default action of signal",
+    "Access not within mapped region",
+    "Stack overflow in thread",
+)
+
 # HEAP SUMMARY lines
 _IN_USE_RE = re.compile(r"in use at exit:\s*([\d,]+)\s*bytes in\s*([\d,]+)\s*blocks", re.I)
 _TOTAL_USAGE_RE = re.compile(
@@ -46,6 +69,24 @@ def _looks_like_separator(line: str) -> bool:
 def _is_ignorable_header(line: str) -> bool:
     s = _strip_tag(line).strip()
     return any(s.startswith(p) for p in _IGNORE_PREFIXES)
+
+def _prefilter_lines(lines: List[str]) -> List[str]:
+    """Drop Docker noise and everything from valgrind's own crash dump onwards."""
+    result = []
+    in_crash_dump = False
+    for line in lines:
+        raw = line.strip()
+        stripped = _strip_tag(line).strip()
+        # Once a crash dump trigger is found, discard this and all remaining lines.
+        if any(raw.startswith(t) or stripped.startswith(t) for t in _CRASH_DUMP_TRIGGERS):
+            in_crash_dump = True
+        if in_crash_dump:
+            continue
+        # Drop simple one-line noise (e.g. Docker platform warning).
+        if any(raw.startswith(p) or stripped.startswith(p) for p in _DROP_LINE_PREFIXES):
+            continue
+        result.append(line)
+    return result
 
 def _to_int(s: Optional[str]) -> Optional[int]:
     if s is None:
@@ -104,7 +145,7 @@ def parse_valgrind_stdout(text: str, *, group: bool = False) -> Dict[str, Any]:
           "meta": {"tool": str|None, "version": str|None, "command": str|None, "leak_status": str|None}
         }
     """
-    lines = text.splitlines()
+    lines = _prefilter_lines(text.splitlines())
 
     # --- Meta detection (tool, version, command, leak_status)
     version = None
@@ -138,8 +179,12 @@ def parse_valgrind_stdout(text: str, *, group: bool = False) -> Dict[str, Any]:
 
     # --- Walk lines, collecting errors + summaries
     errors: List[Dict[str, Any]] = []
+    signals: List[Dict[str, Any]] = []
     current_title: List[str] = []
     current_details: List[str] = []
+    in_signal_block: bool = False
+    current_signal_title: List[str] = []
+    current_signal_details: List[str] = []
 
     heap_raw: List[str] = []
     leak_raw: List[str] = []
@@ -153,7 +198,11 @@ def parse_valgrind_stdout(text: str, *, group: bool = False) -> Dict[str, Any]:
                 in_heap_summary = False
             if in_leak_summary:
                 in_leak_summary = False
-            if current_title or current_details:
+            if in_signal_block:
+                in_signal_block = False
+                _flush_error_block(signals, current_signal_title, current_signal_details)
+                current_signal_title, current_signal_details = [], []
+            elif current_title or current_details:
                 _flush_error_block(errors, current_title, current_details)
                 current_title, current_details = [], []
             continue
@@ -182,14 +231,30 @@ def parse_valgrind_stdout(text: str, *, group: bool = False) -> Dict[str, Any]:
         if _is_ignorable_header(raw):
             continue
 
+        # Detect signal/termination lines — store separately, not as errors
+        if any(s.startswith(p) for p in _SIGNAL_PREFIXES):
+            if current_title or current_details:
+                _flush_error_block(errors, current_title, current_details)
+                current_title, current_details = [], []
+            in_signal_block = True
+            current_signal_title = [s]
+            current_signal_details = []
+            continue
+
+        if in_signal_block:
+            current_signal_details.append(s)
+            continue
+
         # Build an error block: first line is title, the rest are details
         if not current_title:
             current_title = [s]
         else:
             current_details.append(s)
 
-    # Flush a trailing error (file may not end with a blank line)
-    if current_title or current_details:
+    # Flush trailing blocks
+    if in_signal_block:
+        _flush_error_block(signals, current_signal_title, current_signal_details)
+    elif current_title or current_details:
         _flush_error_block(errors, current_title, current_details)
 
     # --- Parse HEAP SUMMARY
@@ -267,6 +332,8 @@ def parse_valgrind_stdout(text: str, *, group: bool = False) -> Dict[str, Any]:
     result: Dict[str, Any] = {
         "error_count": error_count,
         "errors": grouped_errors if group else errors,
+        "signals": signals,  # process termination / signal events (not counted as errors)
+        "crashed": len(signals) > 0,
         "heap_summary": heap_summary,
         "leak_summary": leak_summary,
         "meta": {

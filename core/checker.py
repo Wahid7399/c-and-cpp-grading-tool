@@ -7,6 +7,7 @@ from zipfile import ZipFile
 from .reporting import build_single_report
 from . import relative_grader
 from . import absolute_grader
+from .scoring import apply_weight_overrides
 import shutil
 import os
 import sys
@@ -175,6 +176,7 @@ def grade(results: dict, output: str, grading: str):
         plugin_instance: BasePlugin = all_plugins[plugin]
         plugin_weights = plugin_instance.get_weights()
         for key in plugin_weights.keys():
+            plugin_weights[key] = apply_weight_overrides(key, plugin_weights[key])
             plugin_weights[key]["plugin"] = plugin_instance
         weights.update(plugin_weights)
     if grading == "relative":

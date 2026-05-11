@@ -35,7 +35,7 @@ class MetrixPlusPlusPlugin(BasePlugin):
             return
 
         if os.path.exists(MetrixPlusPlusPlugin.PATH):
-            print(f"✅ Metrix++ is installed")
+            print(f"✅ Metrix++ is ready")
             return
 
         url = "https://github.com/metrixplusplus/metrixplusplus/archive/refs/tags/1.8.1.zip"

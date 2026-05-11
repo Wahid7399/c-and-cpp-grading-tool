@@ -58,7 +58,8 @@ def generate_html_report(data: dict) -> None:
 
   leaks_bytes = (data.get("leak_summary") or {}).get("totals", {}).get("bytes_lost", 0)
   leaks_blocks = (data.get("leak_summary") or {}).get("totals", {}).get("blocks_lost", 0)
-  overall_sev = "bad" if leaks_bytes > 0 else ("warn" if data["error_count"] > 0 else "good")
+  crashed = data.get("crashed", False)
+  overall_sev = "bad" if leaks_bytes > 0 or crashed else ("warn" if data["error_count"] > 0 else "good")
 
   # ---------- Build HTML ----------
   css_vars = "\n  ".join(f"{k}: {v};" for k, v in theme.items())
@@ -133,11 +134,11 @@ hr.div {{ border: 0; border-top: 1px solid var(--border); margin: 20px 0; }}
     <div class="hstack" style="justify-content: space-between;">
       <div>
         <h1 style="margin:0; font-size:1.4rem;">Memory Issues Report</h1>
-        <!--div class="subtitle">Tool: {escape(data['meta']['tool'])} {escape(data['meta']['version'])} · Command: {escape(data['meta']['command'])}</div-->
+        <!--div class="subtitle">Tool: {escape(data.get('meta', {}).get('tool') or '')} {escape(data.get('meta', {}).get('version') or '')} · Command: {escape(data.get('meta', {}).get('command') or '')}</div-->
       </div>
       <div class="badge-list">
         {pill("Overall: " + ("Issues Found" if overall_sev!="good" else "All Good"), overall_sev)}
-        {pill("Leak Status: " + escape(data['meta']['leak_status']), "bad" if leaks_bytes > 0 else "good")}
+        {pill("Leak Status: " + escape(data.get('meta', {}).get('leak_status') or 'Unknown'), "bad" if leaks_bytes > 0 else "good")}
       </div>
     </div>
 
@@ -152,11 +153,11 @@ hr.div {{ border: 0; border-top: 1px solid var(--border); margin: 20px 0; }}
       </div>
       <!--div class="kpi">
         <div class="label">Heap Allocs / Frees</div>
-        <div class="value">{data['heap_summary']['total_heap_usage_allocs']} / {data['heap_summary']['total_heap_usage_frees']}</div>
+        <div class="value">N/A</div>
       </div>
       <div class="kpi">
         <div class="label">Bytes Allocated</div>
-        <div class="value">{data['heap_summary']['total_heap_usage_bytes_allocated']:,}</div>
+        <div class="value">N/A</div>
       </div-->
     </div>
 
@@ -211,6 +212,26 @@ hr.div {{ border: 0; border-top: 1px solid var(--border); margin: 20px 0; }}
           </div>
           """)
 
+  # Crash / signal section (not counted as errors)
+  signals_html = ""
+  if data.get("signals"):
+      signal_cards = []
+      for s in data["signals"]:
+          stack = "\n".join(escape(line) for line in s.get("details", []))
+          signal_cards.append(f"""
+          <div class="card" style="border-left: 3px solid var(--bad);">
+            <div class="hstack">
+              <h2 style="margin: 0">{escape(s['title'])}</h2>
+              {pill("Crash / Signal", "bad")}
+            </div>
+            <div class="stack" style="margin-top:8px;">
+              <div class="tip">💡 The program received a fatal signal (e.g. SIGSEGV). This is not counted in the error total but indicates a serious runtime bug — likely a bad pointer or out-of-bounds access.</div>
+              {"<div class='code'>" + stack + "</div>" if stack else ""}
+            </div>
+          </div>
+          """)
+      signals_html = '<hr class="div" /><div class="section-title">Crashes / Signals</div>' + "".join(signal_cards)
+
   heap_raw = "\n".join(escape(line) for line in (data.get("heap_summary") or {}).get("raw", []))
   leak_raw = ""
   if data.get("leak_summary"):
@@ -226,6 +247,8 @@ hr.div {{ border: 0; border-top: 1px solid var(--border); margin: 20px 0; }}
 
       <div class="section-title">Stack traces (for reference)</div>
       {''.join(errors_html) if errors_html else '<div class="card">No errors.</div>'}
+
+      {signals_html}
 
       <hr class="div" />
 
