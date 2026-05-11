@@ -127,6 +127,11 @@ Edit the file in `config/default.json` or provide a file via command line argume
                     "bonus_cap": 10.0
                 }
             }
+        },
+        "final_score": {
+            "quality_weight": 0.3,
+            "test_weight": 0.7,
+            "test_cap": 100.0
         }
     },
     "plugins": {
