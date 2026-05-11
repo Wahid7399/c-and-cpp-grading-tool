@@ -20,8 +20,8 @@ Supports both single-folder and multi-folder processing.
 Clone the repository and install dependencies:
 
 ```bash
-git clone https://github.com/Wahid7399/quality-metrics.git
-cd quality-metrics
+git clone https://github.com/Wahid7399/c-and-cpp-grading-tool.git
+cd c-and-cpp-grading-tool
 pip install -r requirements.txt
 ```
 
