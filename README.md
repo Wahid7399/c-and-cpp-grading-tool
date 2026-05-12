@@ -164,3 +164,11 @@ Artifacts:
 - `raw.json`: raw structured results
 
 Plugin-specific reports/logs are stored in sub-folders under output (for example: `.clangtidy`, `.doctest`, `.metrixplusplus`, `.valgrind`).
+
+## Evaluation
+
+<img width="1920" height="965" alt="grading graph" src="https://github.com/user-attachments/assets/7ecd345c-cce1-460f-91af-18b00b9d4c45" />
+We evaluated the tool in a user study with seven teaching assistants who re-graded 42 student submissions, producing an original score first and then a revised score after reading the tool's report. In the chart, evaluations are sorted left-to-right by the tool's aggregated score.
+
+Reading the report changed the TA's grade in **39 of 42 evaluations (92.9%)**: 20 revisions decreased the score (the report surfaced quality or memory issues the TA had missed) and 19 increased the score (the report surfaced partial credit the TA had been too strict to award). The mean absolute distance between the TA's grade and the tool's aggregated score dropped from **12.37 to 7.25 points** -- a **41.4% reduction**. The pattern is bidirectional: low-end submissions get increased toward the tool, high-end submissions get decreased toward the tool, in short, the tool corrects grading in both directions instead of pushing all scores one way.
+
