@@ -24,7 +24,7 @@
     },
     "plugins.doctest.tests_file": {
         "label": "Default tests file",
-        "description": "Optional tests file path. Leave null if tests are always passed via CLI."
+        "description": "Tests file path."
     },
     "plugins.clangtidy": {
         "section": "plugin: clangtidy",
